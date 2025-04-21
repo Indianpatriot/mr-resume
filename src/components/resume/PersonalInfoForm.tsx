@@ -1,10 +1,13 @@
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PersonalInfoData {
   fullName: string;
@@ -23,6 +26,8 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
   const { register, handleSubmit, setValue, watch } = useForm<PersonalInfoData>({
     defaultValues: data,
   });
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
 
   // Watch for form changes to update preview in real-time
   const formValues = watch();
@@ -39,6 +44,57 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
       });
     }
   }, [data, setValue]);
+
+  const generateAISummary = async () => {
+    try {
+      setIsGenerating(true);
+      
+      // Get job details from form
+      const fullName = formValues.fullName || "a professional";
+      
+      // Some default values if fields are empty
+      const jobTitle = "Software Engineer"; // This would ideally come from another form field
+      const industry = "Technology";
+      const experienceLevel = "mid-level";
+      
+      const response = await supabase.functions.invoke('resume-ai-helper', {
+        body: {
+          section: 'summary',
+          currentContent: formValues.summary,
+          jobTitle,
+          industry,
+          experienceLevel,
+          prompt: `The person's name is ${fullName}.`
+        }
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data.content) {
+        setValue("summary", response.data.content);
+        updateData({
+          ...formValues,
+          summary: response.data.content,
+        });
+        
+        toast({
+          title: "Summary Generated",
+          description: "Your professional summary has been created with AI assistance.",
+        });
+      }
+    } catch (error) {
+      console.error("Error generating summary:", error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate summary. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <form className="space-y-6">
@@ -96,16 +152,17 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
       <Button 
         type="button" 
         className="w-full bg-blue-500 text-white border-4 border-black transform hover:rotate-1 transition-transform"
-        onClick={() => {
-          // This would connect to an AI endpoint to generate a professional summary
-          setValue("summary", "Experienced software engineer with 5+ years of expertise in developing scalable web applications. Proficient in React, TypeScript, and Node.js with a strong focus on creating responsive and user-friendly interfaces.");
-          updateData({
-            ...formValues,
-            summary: "Experienced software engineer with 5+ years of expertise in developing scalable web applications. Proficient in React, TypeScript, and Node.js with a strong focus on creating responsive and user-friendly interfaces.",
-          });
-        }}
+        onClick={generateAISummary}
+        disabled={isGenerating}
       >
-        Generate AI Summary
+        {isGenerating ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+            Generating AI Summary...
+          </>
+        ) : (
+          "Generate AI Summary"
+        )}
       </Button>
     </form>
   );

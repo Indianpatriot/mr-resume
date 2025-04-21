@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ExperienceItem {
   id: string;
@@ -26,6 +28,8 @@ interface ExperienceFormProps {
 const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
   const [experiences, setExperiences] = useState<ExperienceItem[]>(data || []);
   const [editIndex, setEditIndex] = useState<number>(-1);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
   
   const { register, handleSubmit, reset, setValue, watch } = useForm<ExperienceItem>({
     defaultValues: {
@@ -71,6 +75,62 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
     if (editIndex === index) {
       reset();
       setEditIndex(-1);
+    }
+  };
+
+  const generateAIDescription = async () => {
+    try {
+      const company = watch("company");
+      const position = watch("position");
+      const currentDescription = watch("description");
+      
+      if (!company || !position) {
+        toast({
+          title: "Missing Information",
+          description: "Please enter a company name and position to generate a description.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setIsGenerating(true);
+      
+      const response = await supabase.functions.invoke('resume-ai-helper', {
+        body: {
+          section: 'experience',
+          currentContent: currentDescription,
+          jobTitle: position,
+          industry: "Technology", // This would ideally be customizable
+          experienceLevel: "mid-level", // This would ideally be customizable
+          prompt: {
+            company,
+            position,
+            context: "Focus on quantifiable achievements and key responsibilities"
+          }
+        }
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data.content) {
+        setValue("description", response.data.content);
+        
+        toast({
+          title: "Description Generated",
+          description: "Your job description has been created with AI assistance.",
+        });
+      }
+    } catch (error) {
+      console.error("Error generating job description:", error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate description. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -154,17 +214,17 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
         <Button 
           type="button" 
           className="w-full bg-blue-500 text-white border-4 border-black transform hover:rotate-1 transition-transform mb-4"
-          onClick={() => {
-            // This would connect to an AI endpoint to generate a job description
-            const companyName = watch("company");
-            const position = watch("position");
-            if (companyName && position) {
-              const aiGeneratedDescription = `As a ${position} at ${companyName}, I led cross-functional teams in developing innovative solutions, resulting in a 30% increase in user engagement. Managed multiple projects simultaneously while maintaining high-quality standards and on-time delivery.`;
-              setValue("description", aiGeneratedDescription);
-            }
-          }}
+          onClick={generateAIDescription}
+          disabled={isGenerating}
         >
-          Generate AI Description
+          {isGenerating ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+              Generating AI Description...
+            </>
+          ) : (
+            "Generate AI Description"
+          )}
         </Button>
 
         <div className="flex justify-end">

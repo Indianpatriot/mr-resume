@@ -3,7 +3,9 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SkillsFormProps {
   data: string[];
@@ -13,6 +15,8 @@ interface SkillsFormProps {
 const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
   const [skills, setSkills] = useState<string[]>(data || []);
   const [newSkill, setNewSkill] = useState<string>("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     updateData(skills);
@@ -39,28 +43,59 @@ const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
     }
   };
 
-  const generateAISkills = () => {
-    // This would connect to an AI endpoint to suggest skills
-    const suggestionsByCategory = {
-      technical: ["React", "TypeScript", "JavaScript", "Node.js", "REST APIs", "CSS", "HTML", "Git"],
-      soft: ["Communication", "Problem Solving", "Teamwork", "Adaptability", "Creativity"],
-      tools: ["VS Code", "GitHub", "Docker", "Figma", "Jira", "Slack"]
-    };
+  const generateAISkills = async () => {
+    try {
+      setIsGenerating(true);
+      
+      // These would ideally come from form fields or user selection
+      const jobTitle = "Software Engineer";
+      const industry = "Technology";
+      const experienceLevel = "mid-level";
+      
+      const response = await supabase.functions.invoke('resume-ai-helper', {
+        body: {
+          section: 'skills',
+          currentContent: skills,
+          jobTitle,
+          industry,
+          experienceLevel
+        }
+      });
 
-    const allSuggestions = [
-      ...suggestionsByCategory.technical,
-      ...suggestionsByCategory.soft,
-      ...suggestionsByCategory.tools
-    ];
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
 
-    // Filter out skills that are already added
-    const newSuggestions = allSuggestions.filter(skill => !skills.includes(skill));
-    
-    // Add random skills (up to 8 if available)
-    const shuffled = newSuggestions.sort(() => 0.5 - Math.random());
-    const selectedSuggestions = shuffled.slice(0, 8);
-    
-    setSkills([...skills, ...selectedSuggestions]);
+      if (response.data.skills && Array.isArray(response.data.skills)) {
+        // Filter out skills that are already in the list
+        const newSkills = response.data.skills.filter(
+          (skill: string) => !skills.includes(skill)
+        );
+        
+        if (newSkills.length > 0) {
+          setSkills([...skills, ...newSkills]);
+          
+          toast({
+            title: "Skills Generated",
+            description: `Added ${newSkills.length} new skills to your profile.`,
+          });
+        } else {
+          toast({
+            title: "No New Skills",
+            description: "All suggested skills are already in your list.",
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error generating skills:", error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate skills. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -91,8 +126,16 @@ const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
           type="button" 
           className="w-full bg-blue-500 text-white border-4 border-black transform hover:rotate-1 transition-transform"
           onClick={generateAISkills}
+          disabled={isGenerating}
         >
-          Generate AI Skill Suggestions
+          {isGenerating ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 
+              Generating AI Skill Suggestions...
+            </>
+          ) : (
+            "Generate AI Skill Suggestions"
+          )}
         </Button>
 
         <div className="mt-8">

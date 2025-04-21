@@ -5,15 +5,34 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+
+interface AnalysisResult {
+  score: number;
+  keywordMatch: {
+    matched: string[];
+    missing: string[];
+  };
+  formatIssues: string[];
+  contentSuggestions: string[];
+  overallFeedback: string;
+  sectionFeedback?: {
+    summary?: string;
+    experience?: string;
+    education?: string;
+    skills?: string;
+  };
+}
 
 const ATSChecker = () => {
   const [resumeText, setResumeText] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const { toast } = useToast();
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!resumeText.trim() || !jobDescription.trim()) {
       toast({
         title: "Input Required",
@@ -25,29 +44,36 @@ const ATSChecker = () => {
 
     setIsAnalyzing(true);
     
-    // Simulating API call to analyze the resume
-    setTimeout(() => {
-      const mockResult = {
-        score: 78,
-        keywordMatch: {
-          matched: ["React", "TypeScript", "UI/UX", "front-end", "project management"],
-          missing: ["Angular", "Vue.js", "Figma"],
-        },
-        formatIssues: [
-          "Resume uses a complex layout which may confuse some ATS systems",
-          "Inconsistent date formats detected"
-        ],
-        contentSuggestions: [
-          "Consider quantifying your achievements with more specific metrics",
-          "Add more details about your role in team projects",
-          "Include relevant certifications to strengthen your profile"
-        ],
-        overallFeedback: "Your resume shows good alignment with the job requirements but needs some adjustments to improve its ATS compatibility. Focus on adding the missing keywords and simplifying the format for better parsing by automated systems."
-      };
+    try {
+      const response = await supabase.functions.invoke('ats-analyzer', {
+        body: {
+          resumeText,
+          jobDescription
+        }
+      });
 
-      setResult(mockResult);
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      setResult(response.data);
+      
+      toast({
+        title: "Analysis Complete",
+        description: "Your resume has been analyzed against the job description.",
+      });
+      
+    } catch (error) {
+      console.error("Error analyzing resume:", error);
+      toast({
+        title: "Analysis Failed",
+        description: error instanceof Error ? error.message : "Failed to analyze your resume. Please try again.",
+        variant: "destructive"
+      });
+      setResult(null);
+    } finally {
       setIsAnalyzing(false);
-    }, 3000);
+    }
   };
 
   return (
@@ -92,7 +118,14 @@ const ATSChecker = () => {
                 disabled={isAnalyzing}
                 className="w-full bg-pink-500 hover:bg-pink-600 text-white border-4 border-black transform hover:-rotate-1 transition-transform py-6 text-lg font-bold"
               >
-                {isAnalyzing ? "Analyzing..." : "Analyze Resume"}
+                {isAnalyzing ? (
+                  <div className="flex items-center justify-center">
+                    <Loader2 className="mr-2 h-6 w-6 animate-spin" /> 
+                    Analyzing...
+                  </div>
+                ) : (
+                  "Analyze Resume"
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -131,7 +164,7 @@ const ATSChecker = () => {
                       <div>
                         <p className="font-bold">Matched Keywords:</p>
                         <div className="flex flex-wrap gap-2 mt-1">
-                          {result.keywordMatch.matched.map((keyword: string, i: number) => (
+                          {result.keywordMatch.matched.map((keyword, i) => (
                             <span key={i} className="bg-green-100 border-2 border-green-600 px-2 py-0.5 text-green-800">
                               {keyword}
                             </span>
@@ -142,7 +175,7 @@ const ATSChecker = () => {
                       <div>
                         <p className="font-bold">Missing Keywords:</p>
                         <div className="flex flex-wrap gap-2 mt-1">
-                          {result.keywordMatch.missing.map((keyword: string, i: number) => (
+                          {result.keywordMatch.missing.map((keyword, i) => (
                             <span key={i} className="bg-red-100 border-2 border-red-600 px-2 py-0.5 text-red-800">
                               {keyword}
                             </span>
@@ -158,7 +191,7 @@ const ATSChecker = () => {
                       Format Issues
                     </h3>
                     <ul className="list-disc pl-5 space-y-1">
-                      {result.formatIssues.map((issue: string, i: number) => (
+                      {result.formatIssues.map((issue, i) => (
                         <li key={i} className="text-red-600">{issue}</li>
                       ))}
                     </ul>
@@ -170,11 +203,46 @@ const ATSChecker = () => {
                       Improvement Suggestions
                     </h3>
                     <ul className="list-disc pl-5 space-y-1">
-                      {result.contentSuggestions.map((suggestion: string, i: number) => (
+                      {result.contentSuggestions.map((suggestion, i) => (
                         <li key={i}>{suggestion}</li>
                       ))}
                     </ul>
                   </div>
+
+                  {/* Section Feedback if available */}
+                  {result.sectionFeedback && (
+                    <div>
+                      <h3 className="text-lg font-bold mb-2 bg-black text-white inline-block px-2 transform rotate-1">
+                        Section Feedback
+                      </h3>
+                      <div className="space-y-2 mt-2">
+                        {result.sectionFeedback.summary && (
+                          <div>
+                            <p className="font-bold">Summary:</p>
+                            <p className="text-sm">{result.sectionFeedback.summary}</p>
+                          </div>
+                        )}
+                        {result.sectionFeedback.experience && (
+                          <div>
+                            <p className="font-bold">Experience:</p>
+                            <p className="text-sm">{result.sectionFeedback.experience}</p>
+                          </div>
+                        )}
+                        {result.sectionFeedback.education && (
+                          <div>
+                            <p className="font-bold">Education:</p>
+                            <p className="text-sm">{result.sectionFeedback.education}</p>
+                          </div>
+                        )}
+                        {result.sectionFeedback.skills && (
+                          <div>
+                            <p className="font-bold">Skills:</p>
+                            <p className="text-sm">{result.sectionFeedback.skills}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Overall Feedback */}
                   <div className="bg-gray-100 border-4 border-black p-4">
