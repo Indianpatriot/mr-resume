@@ -2,7 +2,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const geminiApiKey = Deno.env.get('gemini_api_key');
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,7 +11,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -18,8 +18,8 @@ serve(async (req) => {
   try {
     const { resumeText, jobDescription } = await req.json();
     
-    if (!openAIApiKey) {
-      throw new Error('Missing OpenAI API key');
+    if (!geminiApiKey) {
+      throw new Error('Missing Gemini API key');
     }
 
     if (!resumeText || !jobDescription) {
@@ -28,29 +28,8 @@ serve(async (req) => {
 
     console.log('Analyzing resume against job description');
 
-    const systemPrompt = `
-    You are an expert ATS (Applicant Tracking System) analyzer. Your job is to analyze a resume against a job description and provide detailed feedback.
-    Return your analysis in the following JSON format:
-    {
-      "score": number (0-100 representing overall ATS compatibility score),
-      "keywordMatch": {
-        "matched": ["keyword1", "keyword2", ...],
-        "missing": ["keyword1", "keyword2", ...]
-      },
-      "formatIssues": ["issue1", "issue2", ...],
-      "contentSuggestions": ["suggestion1", "suggestion2", ...],
-      "overallFeedback": "detailed paragraph of overall feedback",
-      "sectionFeedback": {
-        "summary": "feedback on the summary section",
-        "experience": "feedback on work experience",
-        "education": "feedback on education",
-        "skills": "feedback on skills section"
-      }
-    }
-    `;
-
-    const userPrompt = `
-    Please analyze this resume:
+    const prompt = `
+    You are an expert ATS (Applicant Tracking System) analyzer. Analyze this resume:
     
     ${resumeText}
     
@@ -58,46 +37,71 @@ serve(async (req) => {
     
     ${jobDescription}
     
-    Provide a detailed analysis focusing on:
+    Provide detailed analysis including:
     1. Overall ATS compatibility score (0-100)
-    2. Keyword matches and gaps
+    2. Keywords found and missing from the job description
     3. Format issues that might prevent proper ATS parsing
     4. Content improvement suggestions
     5. Section-by-section analysis
-    6. Overall feedback with specific recommendations
-    `;
-
-    console.log('Sending analysis request to OpenAI');
+    6. Overall feedback
     
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    Return response in this exact JSON format:
+    {
+      "score": number,
+      "keywordMatch": {
+        "matched": ["keyword1", "keyword2"],
+        "missing": ["keyword1", "keyword2"]
+      },
+      "formatIssues": ["issue1", "issue2"],
+      "contentSuggestions": ["suggestion1", "suggestion2"],
+      "sectionFeedback": {
+        "summary": "feedback text",
+        "experience": "feedback text",
+        "education": "feedback text",
+        "skills": "feedback text"
+      },
+      "overallFeedback": "detailed feedback paragraph"
+    }`;
+
+    const response = await fetch(GEMINI_API_URL, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
+        'x-goog-api-key': geminiApiKey,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.5,
-        response_format: { type: "json_object" }
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+        }
       }),
     });
 
     const data = await response.json();
     
     if (!response.ok) {
-      console.error('OpenAI API error:', data);
-      throw new Error(`OpenAI API error: ${data.error?.message || 'Unknown error'}`);
+      console.error('Gemini API error:', data);
+      throw new Error(`Gemini API error: ${JSON.stringify(data)}`);
     }
-    
-    const analysis = JSON.parse(data.choices[0].message.content);
-    console.log('Analysis completed successfully');
 
-    // Store analysis in database (if supabase client is available)
-    // This would be implemented if we had direct database access from the edge function
+    const analysisText = data.candidates[0].content.parts[0].text;
+    let analysis;
+    
+    try {
+      // Extract JSON from the response text - Gemini might wrap it in markdown code blocks
+      const jsonMatch = analysisText.match(/```json\n?(.*)\n?```/s) || analysisText.match(/{[\s\S]*}/);
+      const jsonStr = jsonMatch ? jsonMatch[1] || jsonMatch[0] : analysisText;
+      analysis = JSON.parse(jsonStr);
+    } catch (error) {
+      console.error('Error parsing Gemini response:', error);
+      throw new Error('Failed to parse analysis results');
+    }
 
     return new Response(JSON.stringify(analysis), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
