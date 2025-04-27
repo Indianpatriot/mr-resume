@@ -1,9 +1,12 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ATSForm } from "@/components/ats-checker/ATSForm";
 import { ATSResults } from "@/components/ats-checker/ATSResults";
+import { supabase } from "@/integrations/supabase/client";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
 export interface AnalysisResult {
   score: number;
@@ -20,6 +23,10 @@ export interface AnalysisResult {
     education?: string;
     skills?: string;
   };
+  // Additional fields for database storage
+  id?: string;
+  createdAt?: string;
+  jobTitle?: string;
 }
 
 const ATSChecker = () => {
@@ -27,7 +34,114 @@ const ATSChecker = () => {
   const [jobDescription, setJobDescription] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [savedAnalyses, setSavedAnalyses] = useState<AnalysisResult[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+
+  // Fetch saved analyses when component mounts
+  useEffect(() => {
+    fetchSavedAnalyses();
+  }, []);
+
+  // Function to save analysis to database
+  const saveAnalysis = async (analysisResult: AnalysisResult) => {
+    try {
+      // Extract job title from the job description (first line or first sentence)
+      const jobTitleMatch = jobDescription.match(/^(.+?)(?:\n|$)/);
+      const jobTitle = jobTitleMatch ? jobTitleMatch[1].trim() : "Untitled Position";
+
+      // Save to database
+      const { data, error } = await supabase.from("ats_analyses").insert({
+        result: analysisResult,
+        score: analysisResult.score,
+        job_description: jobDescription,
+        user_id: "anonymous" // Replace with actual user ID when auth is implemented
+      }).select();
+
+      if (error) {
+        throw error;
+      }
+
+      // Add to local state
+      if (data && data[0]) {
+        const savedAnalysis = {
+          ...analysisResult,
+          id: data[0].id,
+          createdAt: data[0].created_at,
+          jobTitle: jobTitle
+        };
+
+        setSavedAnalyses(prev => [savedAnalysis, ...prev]);
+      }
+
+      return data;
+    } catch (error) {
+      console.error("Error saving analysis:", error);
+      throw error;
+    }
+  };
+
+  // Function to fetch saved analyses from database
+  const fetchSavedAnalyses = async () => {
+    try {
+      // For now, we fetch analyses without user ID filtering since auth isn't implemented
+      const { data, error } = await supabase
+        .from("ats_analyses")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      // Transform data to match our AnalysisResult interface
+      const analyses = data.map(item => ({
+        ...item.result,
+        id: item.id,
+        createdAt: item.created_at,
+        jobTitle: item.job_description.match(/^(.+?)(?:\n|$)/)?.[1].trim() || "Untitled Position"
+      }));
+
+      setSavedAnalyses(analyses);
+    } catch (error) {
+      console.error("Error fetching analyses:", error);
+    }
+  };
+
+  // Function to load a saved analysis
+  const loadAnalysis = (analysis: AnalysisResult) => {
+    setResult(analysis);
+  };
+
+  // Function to export analysis as PDF
+  const exportAnalysis = () => {
+    if (!result) return;
+
+    const element = document.getElementById('ats-results-container');
+    if (!element) return;
+
+    toast({
+      title: "Exporting Analysis",
+      description: "Preparing your analysis for download...",
+    });
+
+    setTimeout(() => {
+      html2canvas(element).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const width = pdf.internal.pageSize.getWidth();
+        const height = (canvas.height * width) / canvas.width;
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+        pdf.save(`ATS-Analysis-${new Date().toISOString().slice(0, 10)}.pdf`);
+        
+        toast({
+          title: "Export Complete",
+          description: "Your analysis has been exported as a PDF.",
+        });
+      });
+    }, 500);
+  };
 
   return (
     <div className="container mx-auto">
@@ -45,12 +159,38 @@ const ATSChecker = () => {
           setIsAnalyzing={setIsAnalyzing}
           setResult={setResult}
           toast={toast}
+          saveAnalysis={saveAnalysis}
         />
 
-        <ATSResults
-          isAnalyzing={isAnalyzing}
-          result={result}
-        />
+        <div id="ats-results-container">
+          <ATSResults
+            isAnalyzing={isAnalyzing}
+            result={result}
+            exportAnalysis={exportAnalysis}
+            saveAnalysis={async () => {
+              if (!result) return;
+              setIsSaving(true);
+              try {
+                await saveAnalysis(result);
+                toast({
+                  title: "Analysis Saved",
+                  description: "Your analysis has been saved successfully.",
+                });
+              } catch (error) {
+                toast({
+                  title: "Save Failed",
+                  description: "Failed to save analysis. Please try again.",
+                  variant: "destructive"
+                });
+              } finally {
+                setIsSaving(false);
+              }
+            }}
+            savedAnalyses={savedAnalyses}
+            loadAnalysis={loadAnalysis}
+            isSaving={isSaving}
+          />
+        </div>
       </div>
     </div>
   );

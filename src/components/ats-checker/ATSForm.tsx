@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { AnalysisResult } from "@/pages/ATSChecker";
 
 interface ATSFormProps {
   resumeText: string;
@@ -15,6 +16,7 @@ interface ATSFormProps {
   setIsAnalyzing: (state: boolean) => void;
   setResult: (result: any) => void;
   toast: any;
+  saveAnalysis: (result: AnalysisResult) => Promise<void>;
 }
 
 export const ATSForm = ({
@@ -26,6 +28,7 @@ export const ATSForm = ({
   setIsAnalyzing,
   setResult,
   toast,
+  saveAnalysis,
 }: ATSFormProps) => {
   const handleAnalyze = async () => {
     if (!resumeText.trim() || !jobDescription.trim()) {
@@ -48,7 +51,17 @@ export const ATSForm = ({
 
       if (response.error) throw new Error(response.error.message);
 
-      setResult(response.data);
+      const analysisResult = response.data as AnalysisResult;
+      setResult(analysisResult);
+
+      // Save analysis to database automatically
+      try {
+        await saveAnalysis(analysisResult);
+      } catch (saveError) {
+        console.error("Error saving analysis:", saveError);
+        // We don't want to show an error to the user if saving fails
+        // The analysis is still displayed to the user
+      }
 
       toast({
         title: "Analysis Complete",
