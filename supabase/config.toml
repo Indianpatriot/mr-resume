@@ -1,1 +1,8 @@
+
 project_id = "wwgejtonllfivubtngfo"
+
+[functions.ats-analyzer]
+verify_jwt = false
+
+[functions.resume-save]
+verify_jwt = false

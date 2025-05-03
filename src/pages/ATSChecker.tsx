@@ -44,19 +44,26 @@ const ATSChecker = () => {
   }, []);
 
   // Function to save analysis to database
-  const saveAnalysis = async (analysisResult: AnalysisResult) => {
+  const saveAnalysis = async (analysisResult: AnalysisResult): Promise<void> => {
     try {
       // Extract job title from the job description (first line or first sentence)
       const jobTitleMatch = jobDescription.match(/^(.+?)(?:\n|$)/);
       const jobTitle = jobTitleMatch ? jobTitleMatch[1].trim() : "Untitled Position";
 
-      // Save to database
-      const { data, error } = await supabase.from("ats_analyses").insert({
-        result: analysisResult,
-        score: analysisResult.score,
-        job_description: jobDescription,
-        user_id: "anonymous" // Replace with actual user ID when auth is implemented
-      }).select();
+      // Save to database - now using the resumes table with content field for storing analysis
+      const { data, error } = await supabase
+        .from("resumes")
+        .insert({
+          title: jobTitle,
+          user_id: "anonymous", // Replace with actual user ID when auth is implemented
+          content: {
+            type: "ats_analysis",
+            result: analysisResult,
+            job_description: jobDescription
+          },
+          ats_score: analysisResult.score
+        })
+        .select();
 
       if (error) {
         throw error;
@@ -73,8 +80,6 @@ const ATSChecker = () => {
 
         setSavedAnalyses(prev => [savedAnalysis, ...prev]);
       }
-
-      return data;
     } catch (error) {
       console.error("Error saving analysis:", error);
       throw error;
@@ -86,8 +91,9 @@ const ATSChecker = () => {
     try {
       // For now, we fetch analyses without user ID filtering since auth isn't implemented
       const { data, error } = await supabase
-        .from("ats_analyses")
+        .from("resumes")
         .select("*")
+        .eq('content->>type', 'ats_analysis')
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -95,12 +101,15 @@ const ATSChecker = () => {
       }
 
       // Transform data to match our AnalysisResult interface
-      const analyses = data.map(item => ({
-        ...item.result,
-        id: item.id,
-        createdAt: item.created_at,
-        jobTitle: item.job_description.match(/^(.+?)(?:\n|$)/)?.[1].trim() || "Untitled Position"
-      }));
+      const analyses = data.map(item => {
+        const analysisContent = item.content as any;
+        return {
+          ...(analysisContent.result || {}),
+          id: item.id,
+          createdAt: item.created_at,
+          jobTitle: item.title || "Untitled Position"
+        };
+      });
 
       setSavedAnalyses(analyses);
     } catch (error) {
