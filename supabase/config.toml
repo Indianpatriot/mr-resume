@@ -1,11 +1,1 @@
-
-project_id = "plhdfjztuzeucphpxomr"
-
-[functions.resume-ai-helper]
-verify_jwt = false
-
-[functions.ats-analyzer]
-verify_jwt = false
-
-[functions.resume-save]
-verify_jwt = false
+project_id = "wwgejtonllfivubtngfo"
