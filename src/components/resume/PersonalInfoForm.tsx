@@ -23,18 +23,12 @@ interface PersonalInfoFormProps {
 }
 
 const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
-  const { register, handleSubmit, setValue, watch } = useForm<PersonalInfoData>({
+  const { register, handleSubmit, setValue, watch, getValues } = useForm<PersonalInfoData>({
     defaultValues: data,
   });
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
-
-  // Watch for form changes to update preview in real-time
-  const formValues = watch();
-  
-  useEffect(() => {
-    updateData(formValues);
-  }, [formValues, updateData]);
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
 
   // Set initial values
   useEffect(() => {
@@ -45,11 +39,38 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
     }
   }, [data, setValue]);
 
+  // Debounced update function
+  const debouncedUpdate = (formValues: PersonalInfoData) => {
+    // Clear any existing timer
+    if (debounceTimer) clearTimeout(debounceTimer);
+    
+    // Set a new timer
+    const timer = setTimeout(() => {
+      updateData(formValues);
+    }, 500); // 500ms delay
+    
+    setDebounceTimer(timer);
+  };
+
+  // Watch for form changes
+  useEffect(() => {
+    const subscription = watch((formValues) => {
+      debouncedUpdate(formValues as PersonalInfoData);
+    });
+    
+    // Cleanup function
+    return () => {
+      subscription.unsubscribe();
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
+  }, [watch, updateData]);
+
   const generateAISummary = async () => {
     try {
       setIsGenerating(true);
       
       // Get job details from form
+      const formValues = getValues();
       const fullName = formValues.fullName || "a professional";
       
       // Some default values if fields are empty
@@ -75,7 +96,7 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
       if (response.data.content) {
         setValue("summary", response.data.content);
         updateData({
-          ...formValues,
+          ...getValues(),
           summary: response.data.content,
         });
         

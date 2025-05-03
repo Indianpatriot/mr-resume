@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,24 +16,44 @@ const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
   const [skills, setSkills] = useState<string[]>(data || []);
   const [newSkill, setNewSkill] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
+  // Debounced update function
+  const debouncedUpdate = useCallback((updatedSkills: string[]) => {
+    // Clear any existing timer
+    if (debounceTimer) clearTimeout(debounceTimer);
+    
+    // Set a new timer
+    const timer = setTimeout(() => {
+      updateData(updatedSkills);
+    }, 500); // 500ms delay
+    
+    setDebounceTimer(timer);
+  }, [debounceTimer, updateData]);
+
+  // When local skills state changes, debounce the update to parent
   useEffect(() => {
-    updateData(skills);
-  }, [skills, updateData]);
+    debouncedUpdate(skills);
+    
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
+  }, [skills, debouncedUpdate]);
 
   const addSkill = () => {
     if (newSkill.trim() && !skills.includes(newSkill.trim())) {
-      const updatedSkills = [...skills, newSkill.trim()];
-      setSkills(updatedSkills);
+      setSkills(prev => [...prev, newSkill.trim()]);
       setNewSkill("");
     }
   };
 
   const removeSkill = (index: number) => {
-    const updatedSkills = [...skills];
-    updatedSkills.splice(index, 1);
-    setSkills(updatedSkills);
+    setSkills(prev => {
+      const updated = [...prev];
+      updated.splice(index, 1);
+      return updated;
+    });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -73,7 +93,7 @@ const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
         );
         
         if (newSkills.length > 0) {
-          setSkills([...skills, ...newSkills]);
+          setSkills(prev => [...prev, ...newSkills]);
           
           toast({
             title: "Skills Generated",

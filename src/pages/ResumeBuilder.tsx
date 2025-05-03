@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +8,7 @@ import SkillsForm from "@/components/resume/SkillsForm";
 import ResumePreview from "@/components/resume/ResumePreview";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Save } from "lucide-react";
+import { Eye, EyeOff, Save } from "lucide-react";
 import { getCurrentUserId, getAccessToken } from "@/lib/supabase-auth";
 
 type ResumeSection = "personal" | "experience" | "education" | "skills";
@@ -19,6 +18,7 @@ const ResumeBuilder = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [resumeTitle, setResumeTitle] = useState("My Resume");
   const [userId, setUserId] = useState<string>("anonymous");
+  const [showPreview, setShowPreview] = useState(false);
   const { toast } = useToast();
   
   const [resumeData, setResumeData] = useState({
@@ -49,6 +49,17 @@ const ResumeBuilder = () => {
       ...prev,
       [section]: data,
     }));
+  };
+
+  // Toggle preview visibility
+  const togglePreview = () => {
+    setShowPreview(prev => !prev);
+    if (!showPreview) {
+      toast({
+        title: "Preview Activated",
+        description: "You can now see how your resume looks.",
+      });
+    }
   };
 
   const handleNext = () => {
@@ -147,7 +158,17 @@ const ResumeBuilder = () => {
       </h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
+        <div className={`lg:col-span-${showPreview ? '2' : '3'}`}>
+          <div className="flex justify-between mb-4">
+            <Button 
+              onClick={togglePreview}
+              className="bg-blue-500 hover:bg-blue-600 text-white border-4 border-black transform hover:rotate-1 transition-transform flex items-center gap-2"
+            >
+              {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPreview ? "Hide Preview" : "Show Preview"}
+            </Button>
+          </div>
+
           <Tabs value={currentSection} onValueChange={(value) => setCurrentSection(value as ResumeSection)} className="w-full">
             <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
               <CardHeader className="border-b-4 border-black bg-yellow-400">
@@ -234,18 +255,20 @@ const ResumeBuilder = () => {
           </Tabs>
         </div>
 
-        <div className="lg:col-span-1">
-          <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-            <CardHeader className="border-b-4 border-black bg-blue-500">
-              <CardTitle className="text-2xl font-bold text-white">
-                Preview
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <ResumePreview data={resumeData} />
-            </CardContent>
-          </Card>
-        </div>
+        {showPreview && (
+          <div className="lg:col-span-1">
+            <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <CardHeader className="border-b-4 border-black bg-blue-500">
+                <CardTitle className="text-2xl font-bold text-white">
+                  Preview
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <ResumePreview data={resumeData} />
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );
