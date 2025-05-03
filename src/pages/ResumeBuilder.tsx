@@ -101,6 +101,9 @@ const ResumeBuilder = () => {
       // Get access token for authenticated requests
       const accessToken = await getAccessToken();
       
+      // Get current user ID for saving
+      const currentUserId = await getCurrentUserId();
+      
       // Call the edge function to save the resume
       const response = await fetch("https://wwgejtonllfivubtngfo.supabase.co/functions/v1/resume-save", {
         method: "POST",
@@ -111,7 +114,7 @@ const ResumeBuilder = () => {
         body: JSON.stringify({
           resumeData,
           title: resumeData.personal.fullName ? `${resumeData.personal.fullName}'s Resume` : resumeTitle,
-          userId,
+          userId: currentUserId,
         }),
       });
 

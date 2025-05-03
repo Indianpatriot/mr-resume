@@ -4,10 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 /**
  * Get current user ID or return anonymous
  */
-export const getCurrentUserId = (): string => {
-  return supabase.auth.getUser().then(({ data }) => {
+export const getCurrentUserId = async (): Promise<string> => {
+  try {
+    const { data } = await supabase.auth.getUser();
     return data.user?.id || 'anonymous';
-  }).catch(() => 'anonymous');
+  } catch (error) {
+    console.error('Error getting user ID:', error);
+    return 'anonymous';
+  }
 };
 
 /**
