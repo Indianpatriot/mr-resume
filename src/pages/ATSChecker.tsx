@@ -50,7 +50,8 @@ const ATSChecker = () => {
       const jobTitleMatch = jobDescription.match(/^(.+?)(?:\n|$)/);
       const jobTitle = jobTitleMatch ? jobTitleMatch[1].trim() : "Untitled Position";
 
-      // Save to database - now using the resumes table with content field for storing analysis
+      // Save to database - using the resumes table with content field for storing analysis
+      // We need to ensure the content is properly formatted as a JSON object
       const { data, error } = await supabase
         .from("resumes")
         .insert({
@@ -58,7 +59,14 @@ const ATSChecker = () => {
           user_id: "anonymous", // Replace with actual user ID when auth is implemented
           content: {
             type: "ats_analysis",
-            result: analysisResult,
+            result: {
+              score: analysisResult.score,
+              keywordMatch: analysisResult.keywordMatch,
+              formatIssues: analysisResult.formatIssues,
+              contentSuggestions: analysisResult.contentSuggestions,
+              overallFeedback: analysisResult.overallFeedback,
+              sectionFeedback: analysisResult.sectionFeedback || {}
+            },
             job_description: jobDescription
           },
           ats_score: analysisResult.score
@@ -103,8 +111,15 @@ const ATSChecker = () => {
       // Transform data to match our AnalysisResult interface
       const analyses = data.map(item => {
         const analysisContent = item.content as any;
+        const result = analysisContent.result || {};
+        
         return {
-          ...(analysisContent.result || {}),
+          score: result.score || 0,
+          keywordMatch: result.keywordMatch || { matched: [], missing: [] },
+          formatIssues: result.formatIssues || [],
+          contentSuggestions: result.contentSuggestions || [],
+          overallFeedback: result.overallFeedback || "",
+          sectionFeedback: result.sectionFeedback || {},
           id: item.id,
           createdAt: item.created_at,
           jobTitle: item.title || "Untitled Position"
