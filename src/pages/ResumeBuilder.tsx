@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import PersonalInfoForm from "@/components/resume/PersonalInfoForm";
@@ -8,11 +8,19 @@ import EducationForm from "@/components/resume/EducationForm";
 import SkillsForm from "@/components/resume/SkillsForm";
 import ResumePreview from "@/components/resume/ResumePreview";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { Save } from "lucide-react";
+import { getCurrentUserId, getAccessToken } from "@/lib/supabase-auth";
 
 type ResumeSection = "personal" | "experience" | "education" | "skills";
 
 const ResumeBuilder = () => {
   const [currentSection, setCurrentSection] = useState<ResumeSection>("personal");
+  const [isSaving, setIsSaving] = useState(false);
+  const [resumeTitle, setResumeTitle] = useState("My Resume");
+  const [userId, setUserId] = useState<string>("anonymous");
+  const { toast } = useToast();
+  
   const [resumeData, setResumeData] = useState({
     personal: {
       fullName: "",
@@ -25,6 +33,16 @@ const ResumeBuilder = () => {
     education: [] as any[],
     skills: [] as string[],
   });
+
+  // Get current user ID when component mounts
+  useEffect(() => {
+    const fetchUserId = async () => {
+      const id = await getCurrentUserId();
+      setUserId(id);
+    };
+    
+    fetchUserId();
+  }, []);
   
   const updateResumeData = (section: ResumeSection, data: any) => {
     setResumeData((prev) => ({
@@ -62,6 +80,60 @@ const ResumeBuilder = () => {
         break;
       default:
         break;
+    }
+  };
+
+  const handleSaveResume = async () => {
+    // Validate data
+    if (!resumeData.personal.fullName) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter at least your name before saving the resume.",
+        variant: "destructive",
+      });
+      setCurrentSection("personal");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Get access token for authenticated requests
+      const accessToken = await getAccessToken();
+      
+      // Call the edge function to save the resume
+      const response = await fetch("https://wwgejtonllfivubtngfo.supabase.co/functions/v1/resume-save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { "Authorization": `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          resumeData,
+          title: resumeData.personal.fullName ? `${resumeData.personal.fullName}'s Resume` : resumeTitle,
+          userId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: "Resume Saved",
+          description: "Your resume has been saved successfully!",
+        });
+      } else {
+        throw new Error(data.error || "Failed to save resume");
+      }
+    } catch (error) {
+      console.error("Error saving resume:", error);
+      toast({
+        title: "Save Failed",
+        description: error instanceof Error ? error.message : "Failed to save resume. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -145,9 +217,12 @@ const ResumeBuilder = () => {
                     </Button>
                   ) : (
                     <Button
-                      className="bg-yellow-400 hover:bg-yellow-500 text-black border-4 border-black transform hover:-rotate-1 transition-transform ml-auto"
+                      onClick={handleSaveResume}
+                      disabled={isSaving}
+                      className="bg-yellow-400 hover:bg-yellow-500 text-black border-4 border-black transform hover:-rotate-1 transition-transform ml-auto flex items-center gap-2"
                     >
-                      Save & Generate
+                      <Save className="h-4 w-4" /> 
+                      {isSaving ? "Saving..." : "Save & Generate"}
                     </Button>
                   )}
                 </div>

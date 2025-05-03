@@ -33,7 +33,12 @@ serve(async (req) => {
       .insert({
         title,
         user_id: userId || 'anonymous', // Use anonymous for non-authenticated users
-        content: resumeData,
+        content: {
+          type: 'resume',
+          version: '1.0',
+          data: resumeData,
+          created_at: new Date().toISOString()
+        },
       })
       .select();
 
