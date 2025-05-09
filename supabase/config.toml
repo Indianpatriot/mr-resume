@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.resume-save]
 verify_jwt = false
+
+[functions.resume-ai-helper]
+verify_jwt = false

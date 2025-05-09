@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -16,6 +16,7 @@ const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
   const [skills, setSkills] = useState<string[]>(data || []);
   const [newSkill, setNewSkill] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
@@ -66,6 +67,7 @@ const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
   const generateAISkills = async () => {
     try {
       setIsGenerating(true);
+      setAiError(null);
       
       // These would ideally come from form fields or user selection
       const jobTitle = "Software Engineer";
@@ -83,7 +85,7 @@ const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
       });
 
       if (response.error) {
-        throw new Error(response.error.message);
+        throw new Error(response.error.message || "Failed to generate skills");
       }
 
       if (response.data.skills && Array.isArray(response.data.skills)) {
@@ -105,12 +107,20 @@ const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
             description: "All suggested skills are already in your list.",
           });
         }
+      } else {
+        throw new Error("No skills returned from AI");
       }
     } catch (error) {
       console.error("Error generating skills:", error);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Failed to generate skills. Please try again.";
+      
+      setAiError(errorMessage);
+      
       toast({
         title: "Generation Failed",
-        description: error instanceof Error ? error.message : "Failed to generate skills. Please try again.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -157,6 +167,22 @@ const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
             "Generate AI Skill Suggestions"
           )}
         </Button>
+
+        {aiError && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+            <div className="flex items-start">
+              <AlertCircle className="h-5 w-5 text-red-400 mr-2 mt-0.5" />
+              <div>
+                <p className="text-sm text-red-700">
+                  {aiError}
+                </p>
+                <p className="text-xs text-red-600 mt-1">
+                  Please make sure the Gemini API key is properly configured.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-8">
           <Label className="text-lg font-bold">Your Skills</Label>

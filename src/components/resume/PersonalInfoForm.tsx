@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -27,6 +27,7 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
     defaultValues: data,
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const { toast } = useToast();
   const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
 
@@ -68,6 +69,7 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
   const generateAISummary = async () => {
     try {
       setIsGenerating(true);
+      setAiError(null);
       
       // Get job details from form
       const formValues = getValues();
@@ -90,7 +92,7 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
       });
 
       if (response.error) {
-        throw new Error(response.error.message);
+        throw new Error(response.error.message || "Failed to generate summary");
       }
 
       if (response.data.content) {
@@ -104,12 +106,20 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
           title: "Summary Generated",
           description: "Your professional summary has been created with AI assistance.",
         });
+      } else {
+        throw new Error("No content returned from AI");
       }
     } catch (error) {
       console.error("Error generating summary:", error);
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Failed to generate summary. Please try again.";
+      
+      setAiError(errorMessage);
+      
       toast({
         title: "Generation Failed",
-        description: error instanceof Error ? error.message : "Failed to generate summary. Please try again.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -169,6 +179,22 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
           className="border-4 border-black p-6 text-lg min-h-[150px]"
         />
       </div>
+
+      {aiError && (
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+          <div className="flex items-start">
+            <AlertCircle className="h-5 w-5 text-red-400 mr-2 mt-0.5" />
+            <div>
+              <p className="text-sm text-red-700">
+                {aiError}
+              </p>
+              <p className="text-xs text-red-600 mt-1">
+                Please make sure the Gemini API key is properly configured.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Button 
         type="button" 
