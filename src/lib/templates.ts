@@ -1,6 +1,5 @@
 
 import { supabase } from "@/integrations/supabase/client";
-import { Json } from "@/integrations/supabase/types";
 
 export interface ResumeTemplate {
   id: string;
@@ -38,40 +37,65 @@ export interface ResumeTemplate {
 }
 
 export async function getResumeTemplates(): Promise<ResumeTemplate[]> {
-  const { data, error } = await supabase
-    .from('resume_templates')
-    .select('*')
-    .order('created_at', { ascending: false });
+  try {
+    console.log("Fetching resume templates from Supabase");
+    const { data, error } = await supabase
+      .from('resume_templates')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching templates:', error);
-    throw error;
+    if (error) {
+      console.error('Error fetching templates:', error);
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      console.log('No templates found in database, returning defaults');
+      return defaultTemplates;
+    }
+
+    console.log(`Retrieved ${data.length} templates from database`);
+    return data.map(template => ({
+      ...template,
+      content: template.content as ResumeTemplate['content']
+    })) as ResumeTemplate[];
+  } catch (error) {
+    console.error('Error in getResumeTemplates:', error);
+    return defaultTemplates;
   }
-
-  return (data || []).map(template => ({
-    ...template,
-    content: template.content as ResumeTemplate['content']
-  })) as ResumeTemplate[];
 }
 
 export async function getTemplateById(id: string): Promise<ResumeTemplate | null> {
-  const { data, error } = await supabase
-    .from('resume_templates')
-    .select('*')
-    .eq('id', id)
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('resume_templates')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-  if (error) {
-    console.error('Error fetching template:', error);
-    throw error;
+    if (error) {
+      console.error('Error fetching template:', error);
+      
+      // Try to find in default templates
+      const defaultTemplate = defaultTemplates.find(t => t.id === id);
+      if (defaultTemplate) {
+        return defaultTemplate;
+      }
+      
+      throw error;
+    }
+
+    if (!data) return null;
+    
+    return {
+      ...data,
+      content: data.content as ResumeTemplate['content']
+    } as ResumeTemplate;
+  } catch (error) {
+    console.error('Error in getTemplateById:', error);
+    // Try to find in default templates as fallback
+    return defaultTemplates.find(t => t.id === id) || null;
   }
-
-  if (!data) return null;
-  
-  return {
-    ...data,
-    content: data.content as ResumeTemplate['content']
-  } as ResumeTemplate;
 }
 
 // Default templates for initial setup

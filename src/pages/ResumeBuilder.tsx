@@ -173,13 +173,13 @@ const ResumeBuilder = () => {
   };
 
   return (
-    <div className="container mx-auto">
+    <div className="container mx-auto py-8">
       <h1 className="text-4xl font-bold mb-8 bg-black text-white inline-block px-4 py-2 transform -rotate-1">
         Resume Builder
       </h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className={`lg:col-span-${showPreview ? '2' : '3'}`}>
+      <div className="grid grid-cols-1 gap-8">
+        <div className="w-full">
           <div className="flex justify-between mb-4">
             <Button 
               onClick={() => setShowPreview(!showPreview)}
@@ -190,119 +190,123 @@ const ResumeBuilder = () => {
             </Button>
           </div>
 
-          <Tabs value={currentSection} onValueChange={(value) => setCurrentSection(value as ResumeSection)} className="w-full">
-            <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-              <CardHeader className="border-b-4 border-black bg-yellow-400">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-2xl font-bold">
-                    Build Your Resume
-                  </CardTitle>
-                  <TabsList className="bg-black p-1">
-                    <TabsTrigger value="template" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
-                      Template
-                    </TabsTrigger>
-                    <TabsTrigger value="personal" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
-                      Personal
-                    </TabsTrigger>
-                    <TabsTrigger value="experience" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
-                      Experience
-                    </TabsTrigger>
-                    <TabsTrigger value="education" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
-                      Education
-                    </TabsTrigger>
-                    <TabsTrigger value="skills" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
-                      Skills
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
-              </CardHeader>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className={`lg:col-span-${showPreview ? '2' : '3'}`}>
+              <Tabs value={currentSection} onValueChange={(value) => setCurrentSection(value as ResumeSection)} className="w-full">
+                <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                  <CardHeader className="border-b-4 border-black bg-yellow-400">
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="text-2xl font-bold">
+                        Build Your Resume
+                      </CardTitle>
+                      <TabsList className="bg-black p-1">
+                        <TabsTrigger value="template" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+                          Template
+                        </TabsTrigger>
+                        <TabsTrigger value="personal" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+                          Personal
+                        </TabsTrigger>
+                        <TabsTrigger value="experience" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+                          Experience
+                        </TabsTrigger>
+                        <TabsTrigger value="education" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+                          Education
+                        </TabsTrigger>
+                        <TabsTrigger value="skills" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+                          Skills
+                        </TabsTrigger>
+                      </TabsList>
+                    </div>
+                  </CardHeader>
 
-              <CardContent className="pt-6">
-                <TabsContent value="template">
-                  <TemplateSelector 
-                    onSelect={handleTemplateSelect}
-                    selectedId={selectedTemplate?.id}
-                  />
-                </TabsContent>
+                  <CardContent className="pt-6">
+                    <TabsContent value="template">
+                      <TemplateSelector 
+                        onSelect={handleTemplateSelect}
+                        selectedId={selectedTemplate?.id}
+                      />
+                    </TabsContent>
 
-                <TabsContent value="personal">
-                  <PersonalInfoForm 
-                    data={resumeData.personal}
-                    updateData={(data) => updateResumeData("personal", data)}
-                  />
-                </TabsContent>
+                    <TabsContent value="personal">
+                      <PersonalInfoForm 
+                        data={resumeData.personal}
+                        updateData={(data) => updateResumeData("personal", data)}
+                      />
+                    </TabsContent>
 
-                <TabsContent value="experience">
-                  <ExperienceForm
-                    data={resumeData.experience}
-                    updateData={(data) => updateResumeData("experience", data)}
-                  />
-                </TabsContent>
+                    <TabsContent value="experience">
+                      <ExperienceForm
+                        data={resumeData.experience}
+                        updateData={(data) => updateResumeData("experience", data)}
+                      />
+                    </TabsContent>
 
-                <TabsContent value="education">
-                  <EducationForm
-                    data={resumeData.education}
-                    updateData={(data) => updateResumeData("education", data)}
-                  />
-                </TabsContent>
+                    <TabsContent value="education">
+                      <EducationForm
+                        data={resumeData.education}
+                        updateData={(data) => updateResumeData("education", data)}
+                      />
+                    </TabsContent>
 
-                <TabsContent value="skills">
-                  <SkillsForm
-                    data={resumeData.skills}
-                    updateData={(data) => updateResumeData("skills", data)}
-                  />
-                </TabsContent>
+                    <TabsContent value="skills">
+                      <SkillsForm
+                        data={resumeData.skills}
+                        updateData={(data) => updateResumeData("skills", data)}
+                      />
+                    </TabsContent>
 
-                <div className="mt-6 flex justify-between">
-                  {currentSection !== "template" && (
-                    <Button
-                      onClick={handleBack}
-                      className="bg-white text-black border-4 border-black transform hover:rotate-1 transition-transform"
-                    >
-                      Back
-                    </Button>
-                  )}
+                    <div className="mt-6 flex justify-between">
+                      {currentSection !== "template" && (
+                        <Button
+                          onClick={handleBack}
+                          className="bg-white text-black border-4 border-black transform hover:rotate-1 transition-transform"
+                        >
+                          Back
+                        </Button>
+                      )}
 
-                  {currentSection !== "skills" ? (
-                    <Button
-                      onClick={handleNext}
-                      className="bg-pink-500 hover:bg-pink-600 text-white border-4 border-black transform hover:-rotate-1 transition-transform ml-auto"
-                    >
-                      Next
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleSaveResume}
-                      disabled={isSaving}
-                      className="bg-yellow-400 hover:bg-yellow-500 text-black border-4 border-black transform hover:-rotate-1 transition-transform ml-auto flex items-center gap-2"
-                    >
-                      <Save className="h-4 w-4" /> 
-                      {isSaving ? "Saving..." : "Save Resume"}
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </Tabs>
-        </div>
+                      {currentSection !== "skills" ? (
+                        <Button
+                          onClick={handleNext}
+                          className="bg-pink-500 hover:bg-pink-600 text-white border-4 border-black transform hover:-rotate-1 transition-transform ml-auto"
+                        >
+                          Next
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={handleSaveResume}
+                          disabled={isSaving}
+                          className="bg-yellow-400 hover:bg-yellow-500 text-black border-4 border-black transform hover:-rotate-1 transition-transform ml-auto flex items-center gap-2"
+                        >
+                          <Save className="h-4 w-4" /> 
+                          {isSaving ? "Saving..." : "Save Resume"}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Tabs>
+            </div>
 
-        {showPreview && selectedTemplate && (
-          <div className="lg:col-span-1">
-            <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-              <CardHeader className="border-b-4 border-black bg-blue-500">
-                <CardTitle className="text-2xl font-bold text-white">
-                  Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <ResumePreview 
-                  data={resumeData}
-                  template={selectedTemplate}
-                />
-              </CardContent>
-            </Card>
+            {showPreview && selectedTemplate && (
+              <div className="lg:col-span-1">
+                <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                  <CardHeader className="border-b-4 border-black bg-blue-500">
+                    <CardTitle className="text-2xl font-bold text-white">
+                      Preview
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <ResumePreview 
+                      data={resumeData}
+                      template={selectedTemplate}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
