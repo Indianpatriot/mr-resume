@@ -1,11 +1,10 @@
-
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Download, Share2 } from "lucide-react";
 import { useRef } from "react";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import { Button } from "@/components/ui/button";
+import { Download, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import type { ResumeTemplate } from "@/lib/templates";
 
 interface ResumeData {
   personal: {
@@ -38,9 +37,10 @@ interface ResumeData {
 
 interface ResumePreviewProps {
   data: ResumeData;
+  template?: ResumeTemplate;
 }
 
-const ResumePreview = ({ data }: ResumePreviewProps) => {
+const ResumePreview = ({ data, template }: ResumePreviewProps) => {
   const resumeRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -68,13 +68,31 @@ const ResumePreview = ({ data }: ResumePreviewProps) => {
     });
 
     try {
-      const canvas = await html2canvas(resumeRef.current);
+      const canvas = await html2canvas(resumeRef.current, {
+        scale: 2, // Higher quality
+        useCORS: true, // Enable loading external images
+        logging: false, // Disable logging
+        backgroundColor: '#ffffff' // Ensure white background
+      });
+
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
       const width = pdf.internal.pageSize.getWidth();
       const height = (canvas.height * width) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, width, height, undefined, 'FAST');
       
-      pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+      // Apply template-specific styling if available
+      if (template?.content?.style) {
+        const { colors } = template.content.style;
+        // Add any template-specific PDF styling here
+      }
+
       pdf.save(`${data.personal.fullName.replace(/\s+/g, '-')}-Resume.pdf`);
       
       toast({
@@ -99,26 +117,53 @@ const ResumePreview = ({ data }: ResumePreviewProps) => {
     });
   };
 
+  const getTemplateStyles = () => {
+    if (!template) return {};
+
+    const { style } = template.content;
+    return {
+      '--primary-color': style.colors.primary,
+      '--secondary-color': style.colors.secondary,
+      '--accent-color': style.colors.accent,
+      '--heading-font': style.typography.headingFont,
+      '--body-font': style.typography.bodyFont,
+      '--section-gap': style.spacing.sectionGap,
+      '--element-gap': style.spacing.elementGap,
+    } as React.CSSProperties;
+  };
+
   return (
     <div className="text-sm">
-      <div ref={resumeRef}>
+      <div 
+        ref={resumeRef}
+        style={getTemplateStyles()}
+        className="bg-white p-8 shadow-lg min-h-[297mm] w-[210mm] mx-auto"
+      >
         {/* Personal Info */}
         {data.personal.fullName && (
-          <div className="mb-6 border-b-2 border-black pb-4">
-            <h2 className="text-2xl font-bold">{data.personal.fullName}</h2>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-gray-600">
+          <div className="mb-6 border-b-2 border-[var(--primary-color,#000)] pb-4">
+            <h2 className="text-2xl font-bold" style={{ fontFamily: 'var(--heading-font, serif)' }}>
+              {data.personal.fullName}
+            </h2>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[var(--secondary-color,#666)]">
               {data.personal.email && <span>{data.personal.email}</span>}
               {data.personal.phone && <span>{data.personal.phone}</span>}
               {data.personal.location && <span>{data.personal.location}</span>}
             </div>
-            {data.personal.summary && <p className="mt-2">{data.personal.summary}</p>}
+            {data.personal.summary && (
+              <p className="mt-2" style={{ fontFamily: 'var(--body-font, sans-serif)' }}>
+                {data.personal.summary}
+              </p>
+            )}
           </div>
         )}
 
         {/* Experience */}
         {data.experience.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-bold mb-2 bg-black text-white inline-block px-2 transform -rotate-1">Experience</h3>
+            <h3 className="text-lg font-bold mb-2 bg-[var(--accent-color,#000)] text-white inline-block px-2 transform -rotate-1">
+              Experience
+            </h3>
             {data.experience.map((exp) => (
               <div key={exp.id} className="mb-3 last:mb-0">
                 <div className="flex justify-between">
@@ -127,7 +172,7 @@ const ResumePreview = ({ data }: ResumePreviewProps) => {
                     {formatDate(exp.startDate)} - {exp.isCurrent ? "Present" : formatDate(exp.endDate)}
                   </span>
                 </div>
-                <p className="text-gray-700">{exp.company}</p>
+                <p className="text-[var(--secondary-color,#666)]">{exp.company}</p>
                 <p className="mt-1 text-xs">{exp.description}</p>
               </div>
             ))}
@@ -137,7 +182,9 @@ const ResumePreview = ({ data }: ResumePreviewProps) => {
         {/* Education */}
         {data.education.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-bold mb-2 bg-black text-white inline-block px-2 transform rotate-1">Education</h3>
+            <h3 className="text-lg font-bold mb-2 bg-[var(--accent-color,#000)] text-white inline-block px-2 transform rotate-1">
+              Education
+            </h3>
             {data.education.map((edu) => (
               <div key={edu.id} className="mb-3 last:mb-0">
                 <div className="flex justify-between">
@@ -146,7 +193,7 @@ const ResumePreview = ({ data }: ResumePreviewProps) => {
                     {formatDate(edu.startDate)} - {edu.isCurrent ? "Present" : formatDate(edu.endDate)}
                   </span>
                 </div>
-                <p className="text-gray-700">{edu.institution}</p>
+                <p className="text-[var(--secondary-color,#666)]">{edu.institution}</p>
               </div>
             ))}
           </div>
@@ -155,10 +202,15 @@ const ResumePreview = ({ data }: ResumePreviewProps) => {
         {/* Skills */}
         {data.skills.length > 0 && (
           <div>
-            <h3 className="text-lg font-bold mb-2 bg-black text-white inline-block px-2 transform -rotate-1">Skills</h3>
+            <h3 className="text-lg font-bold mb-2 bg-[var(--accent-color,#000)] text-white inline-block px-2 transform -rotate-1">
+              Skills
+            </h3>
             <div className="flex flex-wrap gap-1">
               {data.skills.map((skill, index) => (
-                <span key={index} className="bg-gray-100 px-2 py-0.5 text-xs border border-black">
+                <span 
+                  key={index} 
+                  className="bg-[var(--primary-color,#000)] bg-opacity-10 px-2 py-0.5 text-xs border border-[var(--primary-color,#000)]"
+                >
                   {skill}
                 </span>
               ))}
