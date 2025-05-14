@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
@@ -13,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { section, context, page = 1, filter = "", action, suggestionId, feedback } = await req.json();
+    const { section, context, prompt, currentContent, page = 1, filter = "", action, suggestionId, feedback } = await req.json();
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -43,26 +44,54 @@ serve(async (req) => {
       throw new Error('Missing Gemini API key');
     }
 
-    const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
+    // Updated Gemini API URL and format
+    const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent";
 
-    const prompt = `
-      Generate professional content suggestions for a resume ${section}.
-      Context: ${context}
-      Category: ${section}
-      Filter criteria: ${filter}
-      
-      Return exactly 10 suggestions in this JSON format:
-      {
-        "suggestions": [
-          {
-            "id": "unique-id",
-            "content": "suggestion text",
-            "category": "${section}",
-            "rating": 0
-          }
-        ]
-      }
-    `;
+    let promptText = "";
+
+    // For summary generation
+    if (section === "summary") {
+      const { jobTitle, industry, experienceLevel } = context || {};
+      promptText = `
+        Generate a professional resume summary for a ${experienceLevel || "mid-level"} ${jobTitle || "professional"} in the ${industry || "technology"} industry.
+        ${prompt || ""}
+        Make it concise (2-4 sentences), professional, and highlight key strengths.
+        Current content for reference (improve upon this): ${currentContent || ""}
+      `;
+    } 
+    // For experience descriptions
+    else if (section === "experience") {
+      const { company, position } = prompt || {};
+      promptText = `
+        Generate a professional job description for a ${position || "role"} at ${company || "a company"}.
+        Focus on quantifiable achievements and key responsibilities.
+        Make it concise (3-5 bullet points worth), professional, and highlight relevant skills.
+        Current content for reference (improve upon this): ${currentContent || ""}
+      `;
+    } 
+    // For general suggestions
+    else {
+      promptText = `
+        Generate professional content suggestions for a resume ${section}.
+        Context: ${context || ""}
+        Category: ${section || "content"}
+        Filter criteria: ${filter || ""}
+        
+        Return exactly 10 suggestions in this JSON format:
+        {
+          "suggestions": [
+            {
+              "id": "unique-id",
+              "content": "suggestion text",
+              "category": "${section}",
+              "rating": 0
+            }
+          ]
+        }
+      `;
+    }
+
+    console.log("Sending prompt to Gemini:", promptText);
 
     const response = await fetch(GEMINI_API_URL, {
       method: 'POST',
@@ -72,7 +101,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         contents: [{
-          parts: [{ text: prompt }]
+          parts: [{ text: promptText }]
         }],
         generationConfig: {
           temperature: 0.7,
@@ -83,30 +112,46 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`Gemini API error: ${response.status} - ${response.statusText}`, errorText);
+      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
-    const suggestions = JSON.parse(data.candidates[0].content.parts[0].text).suggestions;
+    console.log("Gemini API response:", JSON.stringify(data).substring(0, 200) + "...");
 
-    // Store suggestions in database
-    const { error } = await supabase
-      .from('ai_suggestions')
-      .insert(suggestions.map((s: any) => ({
-        ...s,
-        created_at: new Date().toISOString(),
-      })));
+    // Handle different response formats
+    if (section === "summary" || section === "experience") {
+      // For direct content generation like summary or job description
+      const generatedContent = data.candidates[0].content.parts[0].text;
+      
+      return new Response(
+        JSON.stringify({ success: true, content: generatedContent }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      // For suggestions list
+      const suggestions = JSON.parse(data.candidates[0].content.parts[0].text).suggestions;
 
-    if (error) throw error;
+      // Store suggestions in database
+      const { error } = await supabase
+        .from('ai_suggestions')
+        .insert(suggestions.map((s: any) => ({
+          ...s,
+          created_at: new Date().toISOString(),
+        })));
 
-    return new Response(
-      JSON.stringify({ suggestions }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      if (error) throw error;
+
+      return new Response(
+        JSON.stringify({ success: true, suggestions }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
   } catch (error) {
     console.error('Error in resume-ai-helper function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message, success: false }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

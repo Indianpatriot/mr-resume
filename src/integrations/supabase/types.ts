@@ -36,6 +36,39 @@ export type Database = {
         }
         Relationships: []
       }
+      resume_templates: {
+        Row: {
+          content: Json
+          created_at: string | null
+          description: string | null
+          id: string
+          is_premium: boolean | null
+          name: string
+          thumbnail_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          content: Json
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_premium?: boolean | null
+          name: string
+          thumbnail_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          content?: Json
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_premium?: boolean | null
+          name?: string
+          thumbnail_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       resumes: {
         Row: {
           ats_score: number | null
