@@ -1,4 +1,6 @@
+
 import { supabase } from "@/integrations/supabase/client";
+import { Json } from "@/integrations/supabase/types";
 
 export interface ResumeTemplate {
   id: string;
@@ -46,7 +48,10 @@ export async function getResumeTemplates(): Promise<ResumeTemplate[]> {
     throw error;
   }
 
-  return data || [];
+  return (data || []).map(template => ({
+    ...template,
+    content: template.content as ResumeTemplate['content']
+  })) as ResumeTemplate[];
 }
 
 export async function getTemplateById(id: string): Promise<ResumeTemplate | null> {
@@ -61,7 +66,12 @@ export async function getTemplateById(id: string): Promise<ResumeTemplate | null
     throw error;
   }
 
-  return data;
+  if (!data) return null;
+  
+  return {
+    ...data,
+    content: data.content as ResumeTemplate['content']
+  } as ResumeTemplate;
 }
 
 // Default templates for initial setup
