@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,81 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [errors, setErrors] = useState<{
+    email?: string;
+    username?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    // Check if user is already logged in
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/builder");
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
+
+  const validateForm = () => {
+    const newErrors: {
+      email?: string;
+      username?: string;
+      password?: string;
+      confirmPassword?: string;
+    } = {};
+    let isValid = true;
+
+    // Validate email
+    if (!email) {
+      newErrors.email = "Email is required";
+      isValid = false;
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = "Please enter a valid email address";
+      isValid = false;
+    }
+
+    // Validate password
+    if (!password) {
+      newErrors.password = "Password is required";
+      isValid = false;
+    } else if (password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters";
+      isValid = false;
+    }
+
+    // Validate username and confirm password for signup
+    if (!isLogin) {
+      if (!username) {
+        newErrors.username = "Username is required";
+        isValid = false;
+      } else if (username.length < 3) {
+        newErrors.username = "Username must be at least 3 characters";
+        isValid = false;
+      }
+
+      if (password !== confirmPassword) {
+        newErrors.confirmPassword = "Passwords don't match";
+        isValid = false;
+      }
+    }
+
+    setErrors(newErrors);
+    return isValid;
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
     setLoading(true);
     
     try {
@@ -45,11 +115,6 @@ const Auth = () => {
           throw new Error("Passwords don't match");
         }
 
-        // Validate password strength
-        if (password.length < 8) {
-          throw new Error("Password should be at least 8 characters long");
-        }
-
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -66,6 +131,11 @@ const Auth = () => {
           title: "Registration successful!",
           description: "Please check your email to confirm your registration.",
         });
+        
+        // Switch to login view after successful registration
+        setIsLogin(true);
+        setPassword("");
+        setConfirmPassword("");
       }
     } catch (error: any) {
       toast({
@@ -100,8 +170,9 @@ const Auth = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="your@email.com"
-                className="border-4 border-black p-6 text-lg"
+                className={`border-4 border-black p-6 text-lg ${errors.email ? 'border-red-500' : ''}`}
               />
+              {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
             </div>
 
             {!isLogin && (
@@ -114,8 +185,9 @@ const Auth = () => {
                   onChange={(e) => setUsername(e.target.value)}
                   required
                   placeholder="johndoe123"
-                  className="border-4 border-black p-6 text-lg"
+                  className={`border-4 border-black p-6 text-lg ${errors.username ? 'border-red-500' : ''}`}
                 />
+                {errors.username && <p className="text-red-500 text-sm">{errors.username}</p>}
               </div>
             )}
 
@@ -129,7 +201,7 @@ const Auth = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   placeholder="••••••••"
-                  className="border-4 border-black p-6 text-lg pr-12"
+                  className={`border-4 border-black p-6 text-lg pr-12 ${errors.password ? 'border-red-500' : ''}`}
                 />
                 <Button
                   type="button"
@@ -141,6 +213,7 @@ const Auth = () => {
                   {showPassword ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />}
                 </Button>
               </div>
+              {errors.password && <p className="text-red-500 text-sm">{errors.password}</p>}
             </div>
 
             {!isLogin && (
@@ -154,7 +227,7 @@ const Auth = () => {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                     placeholder="••••••••"
-                    className="border-4 border-black p-6 text-lg pr-12"
+                    className={`border-4 border-black p-6 text-lg pr-12 ${errors.confirmPassword ? 'border-red-500' : ''}`}
                   />
                   <Button
                     type="button"
@@ -166,6 +239,7 @@ const Auth = () => {
                     {showConfirmPassword ? <EyeOff className="h-6 w-6" /> : <Eye className="h-6 w-6" />}
                   </Button>
                 </div>
+                {errors.confirmPassword && <p className="text-red-500 text-sm">{errors.confirmPassword}</p>}
               </div>
             )}
           </CardContent>
@@ -192,6 +266,7 @@ const Auth = () => {
                 setIsLogin(!isLogin);
                 setPassword("");
                 setConfirmPassword("");
+                setErrors({});
               }}
             >
               {isLogin ? "Need an account? Sign up" : "Already have an account? Login"}

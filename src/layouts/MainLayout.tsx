@@ -1,13 +1,56 @@
 
-import { useState } from "react";
-import { Outlet } from "react-router-dom";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Outlet, Link, useNavigate } from "react-router-dom";
 import { SidebarProvider, Sidebar, SidebarContent, SidebarTrigger, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarGroup, SidebarHeader, SidebarFooter } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { FileText, CheckCircle, User, Home } from "lucide-react";
+import { FileText, CheckCircle, User, Home, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const MainLayout = () => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Check for existing session
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user || null);
+      setLoading(false);
+    };
+
+    getSession();
+
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log("Auth state changed:", event);
+        setUser(session?.user || null);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "Signed out",
+        description: "You have been successfully signed out.",
+      });
+      navigate("/");
+    } catch (error) {
+      console.error("Error signing out:", error);
+      toast({
+        title: "Sign out failed",
+        description: "An error occurred while signing out.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -58,11 +101,13 @@ const MainLayout = () => {
           </SidebarContent>
           <SidebarFooter className="p-4">
             {user ? (
-              <Button asChild variant="outline" className="w-full border-4 border-black transform hover:rotate-1 transition-transform">
-                <Link to="/profile">
-                  <User className="mr-2 h-4 w-4" />
-                  My Profile
-                </Link>
+              <Button 
+                onClick={handleSignOut}
+                variant="outline" 
+                className="w-full border-4 border-black transform hover:rotate-1 transition-transform flex items-center justify-center"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
               </Button>
             ) : (
               <Button asChild className="w-full bg-pink-500 hover:bg-pink-600 border-4 border-black transform hover:-rotate-1 transition-transform">
@@ -79,9 +124,18 @@ const MainLayout = () => {
               <h2 className="text-xl font-bold">MR.RESUME</h2>
             </div>
             <div>
-              {!user && (
+              {!user ? (
                 <Button asChild variant="outline" className="border-4 border-black transform hover:rotate-1 transition-transform">
                   <Link to="/auth">Sign In</Link>
+                </Button>
+              ) : (
+                <Button 
+                  onClick={handleSignOut}
+                  variant="outline" 
+                  className="border-4 border-black transform hover:rotate-1 transition-transform flex items-center"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
                 </Button>
               )}
             </div>

@@ -1,9 +1,11 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { getResumeTemplates, type ResumeTemplate } from "@/lib/templates";
 import { Loader2 } from "lucide-react";
+import { AspectRatio } from "@/components/ui/aspect-ratio";
 
 interface TemplateSelectorProps {
   onSelect: (template: ResumeTemplate) => void;
@@ -19,13 +21,18 @@ const TemplateSelector = ({ onSelect, selectedId }: TemplateSelectorProps) => {
     const fetchTemplates = async () => {
       try {
         const data = await getResumeTemplates();
+        console.log("Templates loaded:", data);
         setTemplates(data);
       } catch (error) {
+        console.error("Error loading templates:", error);
         toast({
           title: "Error loading templates",
-          description: "Failed to load resume templates. Please try again.",
+          description: "Failed to load resume templates. Using default templates instead.",
           variant: "destructive",
         });
+        // Use default templates when API fails
+        const { defaultTemplates } = await import("@/lib/templates");
+        setTemplates(defaultTemplates);
       } finally {
         setLoading(false);
       }
@@ -38,6 +45,15 @@ const TemplateSelector = ({ onSelect, selectedId }: TemplateSelectorProps) => {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (templates.length === 0) {
+    return (
+      <div className="border-4 border-black p-6 text-center bg-gray-50">
+        <p className="text-lg text-gray-500">No resume templates found.</p>
+        <p className="text-md text-gray-400 mt-2">Please try refreshing the page.</p>
       </div>
     );
   }
@@ -58,13 +74,13 @@ const TemplateSelector = ({ onSelect, selectedId }: TemplateSelectorProps) => {
             <CardDescription>{template.description}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="aspect-[210/297] rounded-md overflow-hidden border-2 border-black">
+            <AspectRatio ratio={210/297} className="rounded-md overflow-hidden border-2 border-black">
               <img
                 src={template.thumbnail_url}
                 alt={`${template.name} template preview`}
                 className="w-full h-full object-cover"
               />
-            </div>
+            </AspectRatio>
           </CardContent>
           <CardFooter>
             <Button
