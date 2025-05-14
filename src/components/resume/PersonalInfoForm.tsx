@@ -84,9 +84,11 @@ const PersonalInfoForm = ({ data, updateData }: PersonalInfoFormProps) => {
         body: {
           section: 'summary',
           currentContent: formValues.summary,
-          jobTitle,
-          industry,
-          experienceLevel,
+          context: {
+            jobTitle,
+            industry,
+            experienceLevel
+          },
           prompt: `The person's name is ${fullName}.`
         }
       });

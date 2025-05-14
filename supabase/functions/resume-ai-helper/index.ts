@@ -44,8 +44,8 @@ serve(async (req) => {
       throw new Error('Missing Gemini API key');
     }
 
-    // Updated Gemini API URL and format
-    const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.0-pro:generateContent";
+    // Updated Gemini API URL and format - using the correct endpoint
+    const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent";
 
     let promptText = "";
 
@@ -69,6 +69,15 @@ serve(async (req) => {
         Current content for reference (improve upon this): ${currentContent || ""}
       `;
     } 
+    // For skills suggestions
+    else if (section === "skills") {
+      const { jobTitle, industry, experienceLevel } = context || {};
+      promptText = `
+        Generate a list of 10 relevant professional skills for a ${experienceLevel || "mid-level"} ${jobTitle || "professional"} in the ${industry || "technology"} industry.
+        Return the response as a JSON array of strings, like this: ["skill1", "skill2", "skill3"]
+        Current skills for reference (do not include these): ${currentContent ? JSON.stringify(currentContent) : "[]"}
+      `;
+    }
     // For general suggestions
     else {
       promptText = `
@@ -123,30 +132,72 @@ serve(async (req) => {
     // Handle different response formats
     if (section === "summary" || section === "experience") {
       // For direct content generation like summary or job description
-      const generatedContent = data.candidates[0].content.parts[0].text;
+      const generatedText = data.candidates[0].content.parts[0].text;
       
       return new Response(
-        JSON.stringify({ success: true, content: generatedContent }),
+        JSON.stringify({ success: true, content: generatedText }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    } else if (section === "skills") {
+      // For skills list generation
+      try {
+        // Extract skills from the response
+        const responseText = data.candidates[0].content.parts[0].text;
+        
+        // Try to find and parse the JSON array in the response
+        const skillsMatch = responseText.match(/\[.*\]/s);
+        let skills = [];
+        
+        if (skillsMatch) {
+          skills = JSON.parse(skillsMatch[0]);
+        } else {
+          // Fallback: split by lines or commas if JSON parsing fails
+          skills = responseText.split(/[\n,]+/)
+            .map(s => s.trim())
+            .filter(s => s && !s.includes('[') && !s.includes(']') && !s.includes('{') && !s.includes('}'));
+        }
+        
+        return new Response(
+          JSON.stringify({ success: true, skills }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error('Error parsing skills:', error);
+        throw new Error('Failed to parse skills from AI response');
+      }
     } else {
       // For suggestions list
-      const suggestions = JSON.parse(data.candidates[0].content.parts[0].text).suggestions;
+      try {
+        // Try to find and parse the JSON in the response
+        const responseText = data.candidates[0].content.parts[0].text;
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        let suggestions = [];
+        
+        if (jsonMatch) {
+          const parsedData = JSON.parse(jsonMatch[0]);
+          suggestions = parsedData.suggestions || [];
+        } else {
+          throw new Error('Failed to parse suggestions from AI response');
+        }
+        
+        // Store suggestions in database
+        const { error } = await supabase
+          .from('ai_suggestions')
+          .insert(suggestions.map((s: any) => ({
+            ...s,
+            created_at: new Date().toISOString(),
+          })));
 
-      // Store suggestions in database
-      const { error } = await supabase
-        .from('ai_suggestions')
-        .insert(suggestions.map((s: any) => ({
-          ...s,
-          created_at: new Date().toISOString(),
-        })));
+        if (error) throw error;
 
-      if (error) throw error;
-
-      return new Response(
-        JSON.stringify({ success: true, suggestions }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+        return new Response(
+          JSON.stringify({ success: true, suggestions }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error('Error parsing suggestions:', error);
+        throw new Error('Failed to parse suggestions from AI response');
+      }
     }
   } catch (error) {
     console.error('Error in resume-ai-helper function:', error);

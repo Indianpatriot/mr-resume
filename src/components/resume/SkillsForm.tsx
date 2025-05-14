@@ -78,9 +78,11 @@ const SkillsForm = ({ data, updateData }: SkillsFormProps) => {
         body: {
           section: 'skills',
           currentContent: skills,
-          jobTitle,
-          industry,
-          experienceLevel
+          context: {
+            jobTitle,
+            industry,
+            experienceLevel
+          }
         }
       });
 

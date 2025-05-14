@@ -99,9 +99,11 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
         body: {
           section: 'experience',
           currentContent: currentDescription,
-          jobTitle: position,
-          industry: "Technology", // This would ideally be customizable
-          experienceLevel: "mid-level", // This would ideally be customizable
+          context: {
+            jobTitle: position,
+            industry: "Technology", // This would ideally be customizable
+            experienceLevel: "mid-level" // This would ideally be customizable
+          },
           prompt: {
             company,
             position,
