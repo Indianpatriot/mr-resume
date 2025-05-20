@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { ATSForm } from "@/components/ats-checker/ATSForm";
@@ -26,6 +25,13 @@ export interface AnalysisResult {
   id?: string;
   createdAt?: string;
   jobTitle?: string;
+  // Add the content field to fix the TypeScript error
+  content?: {
+    type?: string;
+    result?: any;
+    job_description?: string;
+    resume_text?: string;
+  };
 }
 
 const ATSChecker = () => {
