@@ -16,7 +16,78 @@ serve(async (req) => {
   }
 
   try {
-    const { resumeText, jobDescription } = await req.json();
+    const requestData = await req.json();
+    
+    // Handle text extraction from PDF if that's the requested action
+    if (requestData.action === "extractText") {
+      if (!requestData.fileContent) {
+        throw new Error('Missing file content');
+      }
+      
+      // For PDF extraction, we need to use an external API or library
+      // Here we'll use Gemini to extract the text from the PDF (simplified approach)
+      if (requestData.fileType === "pdf" && geminiApiKey) {
+        try {
+          // Remove the data URI prefix to get the base64 content
+          const base64Content = requestData.fileContent.split(',')[1];
+          
+          // Ask Gemini to extract text from the PDF content
+          const prompt = `
+          This is a base64 encoded PDF document. Extract all the readable text content from it. 
+          Format the text exactly as it appears in the document, preserving paragraphs, bullet points, and sections.
+          Here is the base64 content:
+          ${base64Content.substring(0, 2000)}... (truncated for brevity)
+          
+          ONLY return the extracted text content, nothing else.`;
+          
+          const response = await fetch(GEMINI_API_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': geminiApiKey,
+            },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{
+                  text: prompt
+                }]
+              }],
+              generationConfig: {
+                temperature: 0.1,
+                topK: 40,
+                topP: 0.95,
+              }
+            }),
+          });
+          
+          const data = await response.json();
+          
+          if (!response.ok) {
+            console.error('Gemini API error:', data);
+            throw new Error(`Gemini API error: ${JSON.stringify(data)}`);
+          }
+          
+          const extractedText = data.candidates[0].content.parts[0].text;
+          
+          return new Response(
+            JSON.stringify({ text: extractedText }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (error) {
+          console.error('Error extracting text from PDF:', error);
+          throw new Error('Failed to extract text from PDF');
+        }
+      }
+      
+      // For other file types, return the content as-is
+      return new Response(
+        JSON.stringify({ text: requestData.fileContent }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Handle the original ATS analysis functionality
+    const { resumeText, jobDescription } = requestData;
     
     if (!geminiApiKey) {
       throw new Error('Missing Gemini API key');

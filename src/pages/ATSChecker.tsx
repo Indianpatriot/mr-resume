@@ -1,6 +1,4 @@
-
 import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ATSForm } from "@/components/ats-checker/ATSForm";
 import { ATSResults } from "@/components/ats-checker/ATSResults";
