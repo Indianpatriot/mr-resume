@@ -3,11 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, Save, FileText, Upload } from "lucide-react";
+import { Loader2, Save, FileText, Upload, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { AnalysisResult } from "@/pages/ATSChecker";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 
 interface ATSFormProps {
   resumeText: string;
@@ -34,6 +36,30 @@ export const ATSForm = ({
 }: ATSFormProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [fileProcessingError, setFileProcessingError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Progress simulation for better UX during file processing
+  useEffect(() => {
+    let progressInterval: ReturnType<typeof setInterval>;
+    if (isProcessingFile) {
+      setProcessingProgress(0);
+      progressInterval = setInterval(() => {
+        setProcessingProgress((prev) => {
+          const increment = Math.random() * 15;
+          const newProgress = prev + increment;
+          return newProgress >= 95 ? 95 : newProgress;
+        });
+      }, 500);
+    } else {
+      setProcessingProgress(0);
+    }
+
+    return () => {
+      if (progressInterval) clearInterval(progressInterval);
+    };
+  }, [isProcessingFile]);
 
   const handleAnalyze = async () => {
     if (!resumeText.trim() || !jobDescription.trim()) {
@@ -45,6 +71,7 @@ export const ATSForm = ({
       return;
     }
     setIsAnalyzing(true);
+    setFileProcessingError(null);
 
     try {
       const response = await supabase.functions.invoke("ats-analyzer", {
@@ -54,7 +81,7 @@ export const ATSForm = ({
         }
       });
 
-      if (response.error) throw new Error(response.error.message);
+      if (response.error) throw new Error(response.error.message || "Analysis failed");
 
       const analysisResult = response.data as AnalysisResult;
       setResult(analysisResult);
@@ -86,75 +113,102 @@ export const ATSForm = ({
     }
   };
 
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = async (file: File) => {
     setIsProcessingFile(true);
+    setFileProcessingError(null);
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    
+    if (file.size > maxSize) {
+      toast({
+        title: "File Too Large",
+        description: "File size should be less than 10MB.",
+        variant: "destructive"
+      });
+      setIsProcessingFile(false);
+      return;
+    }
+
     const reader = new FileReader();
 
     reader.onload = async (e) => {
       try {
-        const text = e.target?.result as string;
+        const content = e.target?.result as string;
+        let fileType = file.type;
         
-        // For PDF files, we need to extract text via Edge Function
-        if (file.type === 'application/pdf') {
-          try {
-            const response = await supabase.functions.invoke("ats-analyzer", {
-              body: {
-                action: "extractText",
-                fileContent: text,
-                fileType: "pdf"
-              }
-            });
-            
-            if (response.error) throw new Error(response.error.message);
-            setResumeText(response.data.text || "");
-            
-            toast({
-              title: "Resume Uploaded",
-              description: "Your PDF resume has been processed successfully.",
-            });
-          } catch (error) {
-            console.error("Error extracting PDF text:", error);
-            toast({
-              title: "Error Processing PDF",
-              description: "We couldn't extract text from your PDF. Try pasting the content manually.",
-              variant: "destructive"
-            });
+        // Map from mime types to simpler types
+        const fileTypeMap: Record<string, string> = {
+          'application/pdf': 'pdf',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+          'application/msword': 'doc',
+          'text/plain': 'txt',
+        };
+        
+        const simpleFileType = fileTypeMap[fileType] || 'unknown';
+        
+        if (simpleFileType === 'unknown') {
+          // Try to detect file type from extension
+          const extension = file.name.split('.').pop()?.toLowerCase() || '';
+          if (['pdf', 'docx', 'doc', 'txt'].includes(extension)) {
+            fileType = extension;
           }
-        } else {
-          // For text files, docx, etc. just use the raw text
-          setResumeText(text);
+        }
+        
+        try {
+          const response = await supabase.functions.invoke("ats-analyzer", {
+            body: {
+              action: "extractText",
+              fileContent: content,
+              fileType: simpleFileType,
+              fileName: file.name
+            }
+          });
+          
+          if (response.error || !response.data.success) {
+            throw new Error(response.error?.message || "Failed to process document");
+          }
+          
+          setResumeText(response.data.text || "");
+          
           toast({
             title: "Resume Uploaded",
-            description: "Your resume has been uploaded successfully.",
+            description: `Your ${file.name} has been processed successfully.`,
+          });
+        } catch (error) {
+          console.error("Error extracting document text:", error);
+          setFileProcessingError(`Error processing document. Try a different format or paste the content manually.`);
+          toast({
+            title: "Error Processing Document",
+            description: "We couldn't extract text from your document. Try a different format or paste the content manually.",
+            variant: "destructive"
           });
         }
       } catch (error) {
         console.error("Error reading file:", error);
+        setFileProcessingError("Failed to read the file. Try a different format or paste the content manually.");
         toast({
           title: "Upload Failed",
-          description: "Failed to read the file. Try pasting the content manually.",
+          description: "Failed to read the file. Try a different format or paste the content manually.",
           variant: "destructive"
         });
       } finally {
         setIsProcessingFile(false);
+        setProcessingProgress(100);
+        setTimeout(() => setProcessingProgress(0), 500); // Reset progress after a delay
       }
     };
 
     reader.onerror = () => {
       setIsProcessingFile(false);
+      setFileProcessingError("Failed to read the file.");
       toast({
         title: "Upload Failed",
-        description: "Failed to read the file. Try pasting the content manually.",
+        description: "Failed to read the file. Try a different format or paste the content manually.",
         variant: "destructive"
       });
     };
 
-    // For PDFs, we need the raw binary data to extract text
-    if (file.type === 'application/pdf') {
-      reader.readAsDataURL(file);
-    } else {
-      reader.readAsText(file);
-    }
+    // For all document types, we send as data URL for consistent handling
+    reader.readAsDataURL(file);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -180,6 +234,12 @@ export const ATSForm = ({
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       handleFileUpload(file);
+    }
+  };
+  
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
     }
   };
 
@@ -208,17 +268,31 @@ export const ATSForm = ({
                 <div className="absolute inset-0 flex flex-col items-center justify-center p-6 pointer-events-none">
                   <FileText className="w-12 h-12 mb-2 text-gray-400" />
                   <p className="text-gray-500 text-center mb-2">Paste your resume text or drop a file here</p>
-                  <p className="text-gray-400 text-sm text-center">Supported file types: TXT, DOCX, PDF</p>
+                  <p className="text-gray-400 text-sm text-center">Supported file types: TXT, PDF, DOCX, DOC</p>
                 </div>
               )}
               
               {isProcessingFile && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-80">
-                  <div className="flex flex-col items-center">
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90 z-10">
+                  <div className="flex flex-col items-center w-3/4 max-w-md">
                     <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                    <p>Processing your document...</p>
+                    <p className="mb-2">Processing your document...</p>
+                    <Progress value={processingProgress} className="h-2 w-full mb-1" />
+                    <p className="text-xs text-gray-500">
+                      {processingProgress < 100 ? "Extracting text content..." : "Completed"}
+                    </p>
                   </div>
                 </div>
+              )}
+              
+              {fileProcessingError && !isProcessingFile && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Processing Error</AlertTitle>
+                  <AlertDescription>
+                    {fileProcessingError}
+                  </AlertDescription>
+                </Alert>
               )}
               
               <Textarea
@@ -230,19 +304,24 @@ export const ATSForm = ({
               />
               
               <div className="absolute right-4 bottom-4 flex gap-2">
-                <label className="cursor-pointer">
+                <Button 
+                  type="button"
+                  variant="outline" 
+                  className="flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-800 border-2 border-gray-300"
+                  onClick={triggerFileInput}
+                  disabled={isProcessingFile}
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Upload Resume</span>
                   <input 
+                    ref={fileInputRef}
                     type="file" 
                     className="hidden" 
-                    accept=".txt,.pdf,.docx,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+                    accept=".txt,.pdf,.docx,.doc,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword" 
                     onChange={handleFileInputChange}
                     disabled={isProcessingFile}
                   />
-                  <div className="flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded-md text-sm">
-                    <Upload className="w-4 h-4" />
-                    <span>Upload Resume</span>
-                  </div>
-                </label>
+                </Button>
               </div>
             </div>
           </div>
@@ -258,7 +337,7 @@ export const ATSForm = ({
           </div>
           <Button
             onClick={handleAnalyze}
-            disabled={isAnalyzing}
+            disabled={isAnalyzing || isProcessingFile}
             className="w-full bg-pink-500 hover:bg-pink-600 text-white border-4 border-black transform hover:-rotate-1 transition-transform py-6 text-lg font-bold"
           >
             {isAnalyzing ? (

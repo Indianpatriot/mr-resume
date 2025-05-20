@@ -18,27 +18,64 @@ serve(async (req) => {
   try {
     const requestData = await req.json();
     
-    // Handle text extraction from PDF if that's the requested action
+    // Handle text extraction from various file formats if that's the requested action
     if (requestData.action === "extractText") {
       if (!requestData.fileContent) {
         throw new Error('Missing file content');
       }
       
-      // For PDF extraction, we need to use an external API or library
-      // Here we'll use Gemini to extract the text from the PDF (simplified approach)
-      if (requestData.fileType === "pdf" && geminiApiKey) {
+      // For PDF extraction and other document types
+      if (requestData.fileType && geminiApiKey) {
         try {
           // Remove the data URI prefix to get the base64 content
           const base64Content = requestData.fileContent.split(',')[1];
           
-          // Ask Gemini to extract text from the PDF content
-          const prompt = `
-          This is a base64 encoded PDF document. Extract all the readable text content from it. 
-          Format the text exactly as it appears in the document, preserving paragraphs, bullet points, and sections.
-          Here is the base64 content:
-          ${base64Content.substring(0, 2000)}... (truncated for brevity)
+          // Construct appropriate prompt based on file type
+          let prompt = '';
           
-          ONLY return the extracted text content, nothing else.`;
+          if (requestData.fileType === "pdf") {
+            prompt = `
+            This is a base64 encoded PDF resume document. Extract ALL the readable text content from it. 
+            Format the text in a clean, readable way preserving paragraphs, sections, and bullet points.
+            Focus on extracting:
+            - Personal information (name, contact details)
+            - Professional summary
+            - Work experience with dates, titles, and descriptions
+            - Education details
+            - Skills and certifications
+            - Any other relevant resume sections
+            
+            Here is the base64 content:
+            ${base64Content.substring(0, 3000)}... (truncated for brevity)
+            
+            ONLY return the extracted text content, nothing else. Format it as a proper resume text.`;
+          } else if (requestData.fileType === "docx" || requestData.fileType === "doc") {
+            prompt = `
+            This is a base64 encoded Word document resume. Extract ALL the readable text content from it.
+            Format the text in a clean, readable way preserving paragraphs, sections, and bullet points.
+            Focus on extracting:
+            - Personal information (name, contact details)
+            - Professional summary
+            - Work experience with dates, titles, and descriptions
+            - Education details
+            - Skills and certifications
+            - Any other relevant resume sections
+            
+            Here is the base64 content:
+            ${base64Content.substring(0, 3000)}... (truncated for brevity)
+            
+            ONLY return the extracted text content, nothing else. Format it as a proper resume text.`;
+          } else {
+            // For other document types
+            prompt = `
+            This is a base64 encoded document that contains resume content. Extract ALL the readable text.
+            Format the text in a clean, readable way preserving the structure of the resume.
+            
+            Here is the base64 content:
+            ${base64Content.substring(0, 3000)}... (truncated for brevity)
+            
+            ONLY return the extracted text content, nothing else. Format it as a proper resume text.`;
+          }
           
           const response = await fetch(GEMINI_API_URL, {
             method: 'POST',
@@ -56,6 +93,7 @@ serve(async (req) => {
                 temperature: 0.1,
                 topK: 40,
                 topP: 0.95,
+                maxOutputTokens: 8192,
               }
             }),
           });
@@ -69,19 +107,27 @@ serve(async (req) => {
           
           const extractedText = data.candidates[0].content.parts[0].text;
           
+          // Clean up the extracted text to remove any markdown code blocks or unnecessary formatting
+          const cleanedText = extractedText
+            .replace(/```(.*?)```/gs, '$1') // Remove code blocks if any
+            .replace(/^[\s\n]*|[\s\n]*$/g, ''); // Trim whitespace
+          
           return new Response(
-            JSON.stringify({ text: extractedText }),
+            JSON.stringify({ 
+              text: cleanedText,
+              success: true 
+            }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         } catch (error) {
-          console.error('Error extracting text from PDF:', error);
-          throw new Error('Failed to extract text from PDF');
+          console.error('Error extracting text from document:', error);
+          throw new Error(`Failed to extract text from document: ${error.message}`);
         }
       }
       
-      // For other file types, return the content as-is
+      // For plain text files, return the content as-is
       return new Response(
-        JSON.stringify({ text: requestData.fileContent }),
+        JSON.stringify({ text: requestData.fileContent, success: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -179,7 +225,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error in ats-analyzer function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error.message, success: false }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
