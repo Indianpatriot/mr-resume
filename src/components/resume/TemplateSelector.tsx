@@ -55,16 +55,16 @@ const TemplateSelector = ({ onSelect, selectedId }: TemplateSelectorProps) => {
 
   if (templates.length === 0) {
     return (
-      <div className="border-4 border-black p-6 text-center bg-gray-50">
+      <div className="border-4 border-black p-6 text-center bg-gray-50 w-full">
         <p className="text-lg text-gray-500">No resume templates found.</p>
         <p className="text-md text-gray-400 mt-2">
           Using default templates instead. Please try refreshing the page if you continue to have issues.
         </p>
-        <div className="mt-4">
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {defaultTemplates.map((template) => (
             <Card 
               key={template.id}
-              className={`border-4 mb-4 ${
+              className={`border-4 ${
                 selectedId === template.id 
                   ? 'border-pink-500 shadow-[4px_4px_0px_0px_rgba(236,72,153,1)]' 
                   : 'border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]'
@@ -103,7 +103,7 @@ const TemplateSelector = ({ onSelect, selectedId }: TemplateSelectorProps) => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
       {templates.map((template) => (
         <Card 
           key={template.id}

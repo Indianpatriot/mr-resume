@@ -10,7 +10,7 @@ import ResumePreview from "@/components/resume/ResumePreview";
 import TemplateSelector from "@/components/resume/TemplateSelector";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Save } from "lucide-react";
+import { Eye, EyeOff, Save, Download } from "lucide-react";
 import { getCurrentUserId, getAccessToken } from "@/lib/supabase-auth";
 import type { ResumeTemplate } from "@/lib/templates";
 
@@ -32,6 +32,12 @@ const ResumeBuilder = () => {
       phone: "",
       location: "",
       summary: "",
+      jobTitle: "",
+      industry: "Technology",
+      experienceLevel: "mid-level",
+      linkedIn: "",
+      portfolio: "",
+      careerObjective: "",
     },
     experience: [] as any[],
     education: [] as any[],
@@ -172,15 +178,23 @@ const ResumeBuilder = () => {
     }
   };
 
+  const generateDownloadableResume = () => {
+    // This would be implemented to allow users to download their resume as PDF
+    toast({
+      title: "Coming Soon",
+      description: "Resume download feature will be available soon.",
+    });
+  };
+
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto py-8 px-4">
       <h1 className="text-4xl font-bold mb-8 bg-black text-white inline-block px-4 py-2 transform -rotate-1">
         Resume Builder
       </h1>
 
-      <div className="grid grid-cols-1 gap-8">
+      <div className="flex flex-col gap-8 w-full">
         <div className="w-full">
-          <div className="flex justify-between mb-4">
+          <div className="flex flex-wrap justify-between mb-4 gap-2">
             <Button 
               onClick={() => setShowPreview(!showPreview)}
               className="bg-blue-500 hover:bg-blue-600 text-white border-4 border-black transform hover:rotate-1 transition-transform flex items-center gap-2"
@@ -188,14 +202,22 @@ const ResumeBuilder = () => {
               {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               {showPreview ? "Hide Preview" : "Show Preview"}
             </Button>
+
+            <Button
+              onClick={generateDownloadableResume}
+              className="bg-green-500 hover:bg-green-600 text-white border-4 border-black transform hover:rotate-1 transition-transform flex items-center gap-2"
+              disabled={!selectedTemplate}
+            >
+              <Download className="h-4 w-4" /> Download Resume
+            </Button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className={`lg:col-span-${showPreview ? '2' : '3'}`}>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className={`${showPreview ? 'lg:col-span-8' : 'lg:col-span-12'}`}>
               <Tabs value={currentSection} onValueChange={(value) => setCurrentSection(value as ResumeSection)} className="w-full">
                 <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
                   <CardHeader className="border-b-4 border-black bg-yellow-400">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center flex-wrap gap-4">
                       <CardTitle className="text-2xl font-bold">
                         Build Your Resume
                       </CardTitle>
@@ -219,8 +241,8 @@ const ResumeBuilder = () => {
                     </div>
                   </CardHeader>
 
-                  <CardContent className="pt-6">
-                    <TabsContent value="template">
+                  <CardContent className="pt-6 overflow-x-hidden">
+                    <TabsContent value="template" className="w-full">
                       <TemplateSelector 
                         onSelect={handleTemplateSelect}
                         selectedId={selectedTemplate?.id}
@@ -288,8 +310,8 @@ const ResumeBuilder = () => {
               </Tabs>
             </div>
 
-            {showPreview && selectedTemplate && (
-              <div className="lg:col-span-1">
+            {showPreview && (
+              <div className="lg:col-span-4 sticky top-4 self-start">
                 <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
                   <CardHeader className="border-b-4 border-black bg-blue-500">
                     <CardTitle className="text-2xl font-bold text-white">
@@ -297,10 +319,16 @@ const ResumeBuilder = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-6">
-                    <ResumePreview 
-                      data={resumeData}
-                      template={selectedTemplate}
-                    />
+                    {selectedTemplate ? (
+                      <ResumePreview 
+                        data={resumeData}
+                        template={selectedTemplate}
+                      />
+                    ) : (
+                      <div className="text-center p-4">
+                        <p className="text-gray-500">Select a template to preview your resume</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>

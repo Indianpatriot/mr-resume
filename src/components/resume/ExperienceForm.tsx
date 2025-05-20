@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, X, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ExperienceItem {
   id: string;
@@ -18,6 +19,11 @@ interface ExperienceItem {
   endDate: string;
   description: string;
   isCurrent?: boolean;
+  industry?: string;
+  achievements?: string;
+  technologies?: string;
+  teamSize?: string;
+  responsibilities?: string;
 }
 
 interface ExperienceFormProps {
@@ -29,9 +35,10 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
   const [experiences, setExperiences] = useState<ExperienceItem[]>(data || []);
   const [editIndex, setEditIndex] = useState<number>(-1);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const { toast } = useToast();
   
-  const { register, handleSubmit, reset, setValue, watch } = useForm<ExperienceItem>({
+  const { register, handleSubmit, reset, setValue, watch, getValues } = useForm<ExperienceItem>({
     defaultValues: {
       id: "",
       company: "",
@@ -40,6 +47,11 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
       endDate: "",
       description: "",
       isCurrent: false,
+      industry: "Technology",
+      achievements: "",
+      technologies: "",
+      teamSize: "1-5",
+      responsibilities: "",
     }
   });
 
@@ -83,6 +95,11 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
       const company = watch("company");
       const position = watch("position");
       const currentDescription = watch("description");
+      const industry = watch("industry");
+      const responsibilities = watch("responsibilities");
+      const achievements = watch("achievements");
+      const technologies = watch("technologies");
+      const teamSize = watch("teamSize");
       
       if (!company || !position) {
         toast({
@@ -94,6 +111,7 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
       }
 
       setIsGenerating(true);
+      setAiError(null);
       
       const response = await supabase.functions.invoke('resume-ai-helper', {
         body: {
@@ -101,13 +119,16 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
           currentContent: currentDescription,
           context: {
             jobTitle: position,
-            industry: "Technology", // This would ideally be customizable
-            experienceLevel: "mid-level" // This would ideally be customizable
+            industry: industry || "Technology",
+            teamSize: teamSize || "Unknown"
           },
           prompt: {
             company,
             position,
-            context: "Focus on quantifiable achievements and key responsibilities"
+            context: `Key responsibilities: ${responsibilities || "Not specified"}. 
+                     Key achievements: ${achievements || "Not specified"}.
+                     Technologies used: ${technologies || "Not specified"}.
+                     Focus on quantifiable achievements and key responsibilities.`
           }
         }
       });
@@ -123,9 +144,13 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
           title: "Description Generated",
           description: "Your job description has been created with AI assistance.",
         });
+      } else {
+        throw new Error("No content returned from AI");
       }
     } catch (error) {
       console.error("Error generating job description:", error);
+      setAiError(error instanceof Error ? error.message : "Failed to generate description");
+      
       toast({
         title: "Generation Failed",
         description: error instanceof Error ? error.message : "Failed to generate description. Please try again.",
@@ -135,6 +160,17 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
       setIsGenerating(false);
     }
   };
+
+  const industryOptions = [
+    "Technology", "Healthcare", "Finance", "Education", 
+    "Retail", "Manufacturing", "Marketing", "Media", 
+    "Construction", "Hospitality", "Government", "Non-profit",
+    "Transportation", "Entertainment", "Energy", "Agriculture"
+  ];
+
+  const teamSizeOptions = [
+    "1-5", "6-10", "11-20", "21-50", "51-100", "101-500", "500+"
+  ];
 
   const isCurrent = watch("isCurrent");
 
@@ -161,6 +197,40 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
             className="border-4 border-black p-6 text-lg"
             required
           />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="industry" className="text-lg font-bold">Industry</Label>
+          <Select
+            onValueChange={(value) => setValue("industry", value)}
+            defaultValue={getValues("industry") || "Technology"}
+          >
+            <SelectTrigger id="industry" className="border-4 border-black p-6 text-lg">
+              <SelectValue placeholder="Select Industry" />
+            </SelectTrigger>
+            <SelectContent>
+              {industryOptions.map((industry) => (
+                <SelectItem key={industry} value={industry}>{industry}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="teamSize" className="text-lg font-bold">Team Size</Label>
+          <Select
+            onValueChange={(value) => setValue("teamSize", value)}
+            defaultValue={getValues("teamSize") || "1-5"}
+          >
+            <SelectTrigger id="teamSize" className="border-4 border-black p-6 text-lg">
+              <SelectValue placeholder="Select Team Size" />
+            </SelectTrigger>
+            <SelectContent>
+              {teamSizeOptions.map((size) => (
+                <SelectItem key={size} value={size}>{size}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -203,6 +273,36 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="responsibilities" className="text-lg font-bold">Key Responsibilities</Label>
+          <Textarea
+            id="responsibilities"
+            {...register("responsibilities")}
+            placeholder="List your main responsibilities at this role..."
+            className="border-4 border-black p-6 text-lg min-h-[100px]"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="achievements" className="text-lg font-bold">Key Achievements</Label>
+          <Textarea
+            id="achievements"
+            {...register("achievements")}
+            placeholder="Describe your major achievements and successes..."
+            className="border-4 border-black p-6 text-lg min-h-[100px]"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="technologies" className="text-lg font-bold">Technologies/Tools Used</Label>
+          <Input
+            id="technologies"
+            {...register("technologies")}
+            placeholder="e.g. React, Python, Excel, Salesforce"
+            className="border-4 border-black p-6 text-lg"
+          />
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="description" className="text-lg font-bold">Job Description</Label>
           <Textarea
             id="description"
@@ -212,6 +312,22 @@ const ExperienceForm = ({ data, updateData }: ExperienceFormProps) => {
             required
           />
         </div>
+
+        {aiError && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+            <div className="flex items-start">
+              <AlertCircle className="h-5 w-5 text-red-400 mr-2 mt-0.5" />
+              <div>
+                <p className="text-sm text-red-700">
+                  {aiError}
+                </p>
+                <p className="text-xs text-red-600 mt-1">
+                  Please make sure the Gemini API key is properly configured.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Button 
           type="button" 
