@@ -45,8 +45,10 @@ serve(async (req) => {
             - Skills and certifications
             - Any other relevant resume sections
             
+            IMPORTANT: Extract as much detailed text as possible from the PDF. DO NOT summarize or skip any content.
+            
             Here is the base64 content:
-            ${base64Content.substring(0, 3000)}... (truncated for brevity)
+            ${base64Content.substring(0, 5000)}... (truncated for brevity)
             
             ONLY return the extracted text content, nothing else. Format it as a proper resume text.`;
           } else if (requestData.fileType === "docx" || requestData.fileType === "doc") {
@@ -61,8 +63,10 @@ serve(async (req) => {
             - Skills and certifications
             - Any other relevant resume sections
             
+            IMPORTANT: Extract as much detailed text as possible from the document. DO NOT summarize or skip any content.
+            
             Here is the base64 content:
-            ${base64Content.substring(0, 3000)}... (truncated for brevity)
+            ${base64Content.substring(0, 5000)}... (truncated for brevity)
             
             ONLY return the extracted text content, nothing else. Format it as a proper resume text.`;
           } else {
@@ -71,8 +75,10 @@ serve(async (req) => {
             This is a base64 encoded document that contains resume content. Extract ALL the readable text.
             Format the text in a clean, readable way preserving the structure of the resume.
             
+            IMPORTANT: Extract as much detailed text as possible. DO NOT summarize or skip any content.
+            
             Here is the base64 content:
-            ${base64Content.substring(0, 3000)}... (truncated for brevity)
+            ${base64Content.substring(0, 5000)}... (truncated for brevity)
             
             ONLY return the extracted text content, nothing else. Format it as a proper resume text.`;
           }
@@ -111,6 +117,8 @@ serve(async (req) => {
           const cleanedText = extractedText
             .replace(/```(.*?)```/gs, '$1') // Remove code blocks if any
             .replace(/^[\s\n]*|[\s\n]*$/g, ''); // Trim whitespace
+          
+          console.log('Successfully extracted text from document');
           
           return new Response(
             JSON.stringify({ 

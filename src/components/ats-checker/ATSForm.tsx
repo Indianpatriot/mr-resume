@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -167,12 +166,18 @@ export const ATSForm = ({
             throw new Error(response.error?.message || "Failed to process document");
           }
           
-          setResumeText(response.data.text || "");
-          
-          toast({
-            title: "Resume Uploaded",
-            description: `Your ${file.name} has been processed successfully.`,
-          });
+          // Check if the extracted text is actually present and not empty
+          if (response.data.text && response.data.text.trim() !== "") {
+            // Directly update the resume text field with the extracted content
+            setResumeText(response.data.text);
+            
+            toast({
+              title: "Resume Uploaded",
+              description: `Your ${file.name} has been processed successfully.`,
+            });
+          } else {
+            throw new Error("No text content could be extracted from the document");
+          }
         } catch (error) {
           console.error("Error extracting document text:", error);
           setFileProcessingError(`Error processing document. Try a different format or paste the content manually.`);
