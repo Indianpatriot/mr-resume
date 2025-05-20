@@ -21,8 +21,8 @@ const ResumeBuilder = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<ResumeTemplate | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [resumeTitle, setResumeTitle] = useState("My Resume");
-  const [userId, setUserId] = useState<string>("anonymous");
-  const [showPreview, setShowPreview] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(true);
   const { toast } = useToast();
   
   const [resumeData, setResumeData] = useState({
@@ -161,8 +161,15 @@ const ResumeBuilder = () => {
       if (data.success) {
         toast({
           title: "Resume Saved",
-          description: "Your resume has been saved successfully!",
+          description: "Your resume has been saved successfully! You can access it from your profile.",
         });
+        
+        // Store the resume data in localStorage as a backup
+        localStorage.setItem('savedResumeData', JSON.stringify({
+          resumeData,
+          templateId: selectedTemplate.id,
+          savedAt: new Date().toISOString()
+        }));
       } else {
         throw new Error(data.error || "Failed to save resume");
       }
@@ -173,10 +180,51 @@ const ResumeBuilder = () => {
         description: error instanceof Error ? error.message : "Failed to save resume. Please try again.",
         variant: "destructive",
       });
+      
+      // Store in localStorage as fallback
+      try {
+        localStorage.setItem('savedResumeData', JSON.stringify({
+          resumeData,
+          templateId: selectedTemplate?.id,
+          savedAt: new Date().toISOString(),
+          savedOffline: true
+        }));
+        
+        toast({
+          title: "Offline Backup Created",
+          description: "We saved a local backup of your resume due to the server error.",
+        });
+      } catch (localError) {
+        console.error("Error saving local backup:", localError);
+      }
     } finally {
       setIsSaving(false);
     }
   };
+
+  // Try to load saved data from localStorage on first render
+  useEffect(() => {
+    try {
+      const savedData = localStorage.getItem('savedResumeData');
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        setResumeData(parsed.resumeData);
+        
+        // If there's a templateId, try to set it
+        if (parsed.templateId) {
+          // The actual template will be loaded by the TemplateSelector component
+          console.log("Found saved template ID:", parsed.templateId);
+        }
+        
+        toast({
+          title: "Resume Data Loaded",
+          description: "Your previously saved resume data has been loaded.",
+        });
+      }
+    } catch (error) {
+      console.error("Error loading saved resume data:", error);
+    }
+  }, []);
 
   const generateDownloadableResume = () => {
     // This would be implemented to allow users to download their resume as PDF
@@ -192,7 +240,7 @@ const ResumeBuilder = () => {
         Resume Builder
       </h1>
 
-      <div className="flex flex-col gap-8 w-full">
+      <div className="flex flex-col gap-6 w-full">
         <div className="w-full">
           <div className="flex flex-wrap justify-between mb-4 gap-2">
             <Button 
@@ -212,36 +260,37 @@ const ResumeBuilder = () => {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className={`${showPreview ? 'lg:col-span-8' : 'lg:col-span-12'}`}>
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+            {/* Main editing area - takes full width on mobile, 8/12 on large screens */}
+            <div className={`${showPreview ? 'xl:col-span-8' : 'xl:col-span-12'}`}>
               <Tabs value={currentSection} onValueChange={(value) => setCurrentSection(value as ResumeSection)} className="w-full">
                 <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
                   <CardHeader className="border-b-4 border-black bg-yellow-400">
-                    <div className="flex justify-between items-center flex-wrap gap-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                       <CardTitle className="text-2xl font-bold">
                         Build Your Resume
                       </CardTitle>
-                      <TabsList className="bg-black p-1">
-                        <TabsTrigger value="template" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+                      <TabsList className="bg-black p-1 overflow-x-auto max-w-full flex flex-wrap justify-center">
+                        <TabsTrigger value="template" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white whitespace-nowrap">
                           Template
                         </TabsTrigger>
-                        <TabsTrigger value="personal" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+                        <TabsTrigger value="personal" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white whitespace-nowrap">
                           Personal
                         </TabsTrigger>
-                        <TabsTrigger value="experience" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+                        <TabsTrigger value="experience" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white whitespace-nowrap">
                           Experience
                         </TabsTrigger>
-                        <TabsTrigger value="education" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+                        <TabsTrigger value="education" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white whitespace-nowrap">
                           Education
                         </TabsTrigger>
-                        <TabsTrigger value="skills" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white">
+                        <TabsTrigger value="skills" className="data-[state=active]:bg-pink-500 data-[state=active]:text-white whitespace-nowrap">
                           Skills
                         </TabsTrigger>
                       </TabsList>
                     </div>
                   </CardHeader>
 
-                  <CardContent className="pt-6 overflow-x-hidden">
+                  <CardContent className="pt-6 overflow-auto">
                     <TabsContent value="template" className="w-full">
                       <TemplateSelector 
                         onSelect={handleTemplateSelect}
@@ -310,15 +359,16 @@ const ResumeBuilder = () => {
               </Tabs>
             </div>
 
+            {/* Preview panel - only show when preview is enabled */}
             {showPreview && (
-              <div className="lg:col-span-4 sticky top-4 self-start">
+              <div className="xl:col-span-4 sticky top-4 self-start">
                 <Card className="border-8 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
                   <CardHeader className="border-b-4 border-black bg-blue-500">
                     <CardTitle className="text-2xl font-bold text-white">
                       Preview
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-6">
+                  <CardContent className="pt-6 overflow-auto max-h-[calc(100vh-200px)]">
                     {selectedTemplate ? (
                       <ResumePreview 
                         data={resumeData}

@@ -19,7 +19,7 @@ serve(async (req) => {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { resumeData, userId, title } = await req.json();
+    const { resumeData, userId, title, templateId } = await req.json();
     
     if (!resumeData || !title) {
       throw new Error('Missing required data');
@@ -27,16 +27,20 @@ serve(async (req) => {
 
     console.log('Saving resume:', { title, userId });
 
+    // Create a random UUID for anonymous users since Supabase requires a UUID format
+    const userIdToUse = userId || crypto.randomUUID();
+
     // Save resume to database
     const { data, error } = await supabase
       .from('resumes')
       .insert({
         title,
-        user_id: userId || 'anonymous', // Use anonymous for non-authenticated users
+        user_id: userIdToUse,
         content: {
           type: 'resume',
           version: '1.0',
           data: resumeData,
+          templateId,
           created_at: new Date().toISOString()
         },
       })
@@ -50,7 +54,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: 'Resume saved successfully',
-        data
+        data,
+        resumeId: data?.[0]?.id
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

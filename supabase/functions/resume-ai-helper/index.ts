@@ -59,13 +59,23 @@ serve(async (req) => {
         Current content for reference (improve upon this): ${currentContent || ""}
       `;
     } 
-    // For experience descriptions
+    // For experience descriptions - UPDATED to generate resume entries instead of job postings
     else if (section === "experience") {
-      const { company, position } = prompt || {};
+      const { company, position, responsibilities, achievements, technologies, teamSize, industry } = prompt || {};
       promptText = `
-        Generate a professional job description for a ${position || "role"} at ${company || "a company"}.
-        Focus on quantifiable achievements and key responsibilities.
-        Make it concise (3-5 bullet points worth), professional, and highlight relevant skills.
+        Generate a professional resume job description for my role as ${position || "professional"} at ${company || "a company"}.
+        Write from first person perspective for my resume, not as a job posting.
+        
+        Use these details in the description:
+        - Industry: ${industry || ""}
+        - Team Size: ${teamSize || ""}
+        - Key Responsibilities: ${responsibilities || ""}
+        - Key Achievements: ${achievements || ""}
+        - Technologies Used: ${technologies || ""}
+        
+        Generate 3-5 bullet points focusing on my contributions, achievements, and skills.
+        Make it professional but personalized to highlight MY experience.
+        
         Current content for reference (improve upon this): ${currentContent || ""}
       `;
     } 
